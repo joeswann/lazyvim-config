@@ -1,4 +1,28 @@
 return {
+  {
+    "mfussenegger/nvim-lint",
+    opts = {
+      linters = {
+        markdownlint = {
+          args = { "--disable", "MD041", "--" },
+        },
+      },
+    },
+  },
+  {
+    "https://git.sr.ht/~whynothugo/lsp_lines.nvim",
+    config = function()
+      require("lsp_lines").setup()
+    end,
+  },
+  {
+    "nvim-lspconfig",
+    opts = {
+      diagnostics = {
+        virtual_text = false,
+      },
+    },
+  },
   -- Use <tab> for completion and snippets (supertab)
   -- first: disable default <tab> and <s-tab> behavior in LuaSnip
   {
@@ -13,7 +37,6 @@ return {
     dependencies = {
       "hrsh7th/cmp-emoji",
     },
-    ---@param opts cmp.ConfigSchema
     opts = function(_, opts)
       local has_words_before = function()
         unpack = unpack or table.unpack
@@ -24,7 +47,12 @@ return {
       local luasnip = require("luasnip")
       local cmp = require("cmp")
 
+      opts.sources = vim.tbl_extend("force", opts.sources, {
+        { name = "cody" },
+      })
+
       opts.mapping = vim.tbl_extend("force", opts.mapping, {
+
         ["<Tab>"] = cmp.mapping(function(fallback)
           if cmp.visible() then
             cmp.select_next_item()

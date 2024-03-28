@@ -4,7 +4,9 @@ return {
     "akinsho/toggleterm.nvim",
     config = true,
     cmd = "ToggleTerm",
-    keys = { { "<C-\\>", "<cmd>ToggleTerm<cr>", desc = "Toggle floating terminal" } },
+    keys = {
+      { "<C-\\>", "<cmd>ToggleTerm<cr>", desc = "Toggle floating terminal" },
+    },
     opts = {
       open_mapping = [[<C-\>]],
       direction = "float",
