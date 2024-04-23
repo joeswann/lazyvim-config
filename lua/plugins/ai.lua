@@ -1,10 +1,15 @@
 return {
   {
+    "tzachar/cmp-tabnine",
+    build = "./install.sh",
+    dependencies = "hrsh7th/nvim-cmp",
+  },
+  {
     "zbirenbaum/copilot-cmp",
     config = function()
       require("copilot_cmp").setup({
         panel = { enabled = true, layout = { position = "right" } },
-        suggestion = { enabled = false },
+        suggestion = { enabled = true },
       })
     end,
   },

@@ -1,11 +1,17 @@
 -- Autocmds are automatically loaded on the VeryLazy event
--- Default autocmds that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/autocmds.lua
+-- Default autocmds that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/ladzyvim/config/autocmds.lua
 -- Add any additional autocmds here
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "oil",
   callback = function()
     vim.api.nvim_buf_set_keymap(0, "n", "<C-cr>", ":lua OilNavigate()<CR>", { noremap = true, silent = true })
+  end,
+})
+
+vim.api.nvim_create_autocmd("CursorHold", {
+  callback = function()
+    vim.diagnostic.open_float({ scope = "line" })
   end,
 })
 

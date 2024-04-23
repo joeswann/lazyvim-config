@@ -5,7 +5,10 @@
 
 local map = vim.keymap.set
 
-map("n", "<C-'>", "<cmd>Himalaya<cr>", { desc = "Email" })
-map("", "<Leader>l", require("lsp_lines").toggle, { desc = "Toggle lsp_lines" })
--- map("", "<Leader>e", ":Fern . -width=40 -toggle -drawer -reveal=%<cr>", { desc = "Toggle fern" })
-map("", "<leader>e", require("oil").toggle_float, { desc = "Open explorer" })
+-- map("n", "<C-'>", "<cmd>Himalaya<cr>", { desc = "Email" })
+map("", "<leader>'", require("oil").toggle_float, { desc = "Open explorer" })
+-- map("", "<Leader>l", require("lsp_lines").toggle, { desc = "Toggle lsp_lines" })
+
+-- map("", "<leader>l", function()
+--   require("trouble").toggle()
+-- end, { desc = "Toggle trouble" })
