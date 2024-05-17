@@ -9,7 +9,18 @@ return {
         "tsx",
         "vue",
         "typescript",
+        "scss",
       })
+      -- enable autotagging for Vue files
+      opts.autotag = {
+        enable = true,
+        filetypes = { "html", "xml", "vue" },
+      }
+      -- enable syntax highlighting for Vue files
+      opts.highlight = {
+        enable = true,
+        additional_vim_regex_highlighting = false,
+      }
     end,
   },
 }
