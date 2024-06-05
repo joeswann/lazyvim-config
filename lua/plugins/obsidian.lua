@@ -1,19 +1,19 @@
 return {
-  {
-    "epwalsh/obsidian.nvim",
-    version = "*",
-    lazy = true,
-    ft = "markdown",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    opts = {
-      workspaces = {
-        {
-          name = "vault",
-          path = "~/personal/vault",
-        },
-      },
-    },
-  },
+  -- {
+  --   "epwalsh/obsidian.nvim",
+  --   version = "*",
+  --   lazy = true,
+  --   ft = "markdown",
+  --   dependencies = { "nvim-lua/plenary.nvim" },
+  --   opts = {
+  --     workspaces = {
+  --       {
+  --         name = "vault",
+  --         path = "~/personal/vault",
+  --       },
+  --     },
+  --   },
+  -- },
   -- {
   --   "hisbaan/dataview.nvim",
   --   -- only load dataview.nvim for files in your obsidian vault

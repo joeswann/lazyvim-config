@@ -9,6 +9,33 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+vim.api.nvim_create_autocmd({ "BufEnter", "BufFilePost" }, {
+  callback = function()
+    local file_path = vim.fn.expand("%:.")
+    local git_repo = vim.fn.system("git rev-parse --show-toplevel"):gsub("[\n\r]+", "")
+    local repo_name = vim.fn.fnamemodify(git_repo, ":t")
+
+    -- Shorten the file path if it exceeds a certain length
+    local max_length = 50
+    if #file_path > max_length then
+      local path_parts = vim.split(file_path, "/")
+      local shortened_path = ""
+
+      if #path_parts > 2 then
+        shortened_path = path_parts[1] .. "/.../" .. path_parts[#path_parts]
+      else
+        shortened_path = table.concat(path_parts, "/")
+      end
+
+      file_path = shortened_path
+    end
+
+    vim.opt.titlestring = repo_name .. " - " .. file_path
+    vim.cmd("let &titleold = &title")
+    vim.cmd("set title")
+  end,
+})
+
 vim.api.nvim_create_autocmd("CursorHold", {
   callback = function()
     vim.diagnostic.open_float({ scope = "line" })
