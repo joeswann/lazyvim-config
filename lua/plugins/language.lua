@@ -1,5 +1,12 @@
 return {
   {
+    "mhanberg/output-panel.nvim",
+    event = "VeryLazy",
+    config = function()
+      require("output_panel").setup()
+    end,
+  },
+  {
     "f-person/git-blame.nvim",
     event = "BufReadPre",
     config = function()
@@ -19,7 +26,6 @@ return {
   },
   {
     "folke/trouble.nvim",
-    branch = "dev", -- IMPORTANT!
     keys = {
       {
         "<leader>xx",
@@ -67,6 +73,9 @@ return {
         virtual_text = false,
       },
     },
+    dependencies = {
+      -- "vtsls",
+    },
   },
   -- Use <tab> for completion and snippets (supertab)
   -- first: disable default <tab> and <s-tab> behavior in LuaSnip
@@ -92,9 +101,9 @@ return {
       local luasnip = require("luasnip")
       local cmp = require("cmp")
 
-      opts.sources = vim.tbl_extend("force", opts.sources, {
-        { name = "cody" },
-      })
+      -- opts.sources = vim.tbl_extend("force", opts.sources, {
+      --   { name = "cody" },
+      -- })
 
       opts.mapping = vim.tbl_extend("force", opts.mapping, {
 
