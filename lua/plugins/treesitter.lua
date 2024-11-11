@@ -11,7 +11,7 @@ return {
         "typescript",
         "scss",
         "rust",
-        "graphql"
+        "graphql",
       })
       -- enable autotagging for Vue files
       opts.autotag = {
