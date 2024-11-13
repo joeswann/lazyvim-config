@@ -23,7 +23,13 @@ map("", "<leader>e", require("nvim-tree.api").tree.toggle, { desc = "Open explor
 -- Telescope keymaps
 map("n", "<leader>bu", ":Telescope oldfiles<CR>", { noremap = true, silent = true, desc = "Recent Files" })
 map("n", "<leader>bb", ":Telescope buffers<CR>", { noremap = true, silent = true, desc = "List buffers" })
-map("n", "<leader>r", ":Telescope resume<CR>", { noremap = true, silent = true, desc = "Resume last picker" })
+-- map("n", "<leader>r", ":Telescope resume<CR>", { noremap = true, silent = true, desc = "Resume last picker" })
+map(
+  "n",
+  "<leader>r",
+  require("functions").show_function_menu,
+  { noremap = true, silent = true, desc = "Show Functions Menu" }
+)
 
 -- map(
 --   "n",
