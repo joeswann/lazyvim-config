@@ -20,13 +20,27 @@ return {
         api.config.mappings.default_on_attach(bufnr)
 
         vim.keymap.set("n", "<C-e>", function()
-          api.tree.toggle({ file_path = true })
-        end, opts("Toggle nvimtree"))
+          local current_file = vim.fn.expand("%:p")
+          if current_file == "" then
+            api.tree.toggle()
+          else
+            api.tree.collapse_all()
+            api.tree.toggle({
+              path = vim.fn.expand("%:p:h"),
+              find_file = true,
+              focus = true,
+            })
+          end
+        end, opts("Toggle nvimtree at current file"))
       end
 
       require("nvim-tree").setup({
         filters = { dotfiles = true },
         on_attach = on_attach_change,
+        update_focused_file = {
+          enable = true,
+          update_root = false,
+        },
       })
     end,
   },

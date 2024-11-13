@@ -1,3 +1,4 @@
+-- File: ./plugins/cmp.lua
 return {
   -- Use <tab> for completion and snippets (supertab)
   -- first: disable default <tab> and <s-tab> behavior in LuaSnip
@@ -12,7 +13,8 @@ return {
     "hrsh7th/nvim-cmp",
     dependencies = {
       "hrsh7th/cmp-emoji",
-      "lukas-reineke/cmp-under-comparator", -- Add this for smart sorting
+      "lukas-reineke/cmp-under-comparator",
+      { "yetone/avante.nvim" },
     },
     opts = function(_, opts)
       local has_words_before = function()
@@ -24,9 +26,14 @@ return {
       local luasnip = require("luasnip")
       local cmp = require("cmp")
 
-      -- opts.sources = vim.tbl_extend("force", opts.sources, {
-      --   { name = "cody" },
-      -- })
+      -- Make sure we properly initialize the sources table
+      opts.sources = cmp.config.sources({
+        { name = "nvim_lsp" },
+        { name = "luasnip" },
+        { name = "buffer" },
+        { name = "path" },
+        { name = "avante" }, -- Add avante source
+      })
 
       -- Set up sorting and comparators
       opts.sorting = {
@@ -35,17 +42,12 @@ return {
           cmp.config.compare.offset,
           cmp.config.compare.exact,
           cmp.config.compare.score,
-
-          -- Use the comparator plugin to sort underscores last
           require("cmp-under-comparator").under,
-
-          -- Optional: Custom comparator to sort by frequency of use
           function(entry1, entry2)
             local count1 = entry1.completion_item.data and entry1.completion_item.data.usage_count or 0
             local count2 = entry2.completion_item.data and entry2.completion_item.data.usage_count or 0
             return count1 > count2
           end,
-
           cmp.config.compare.kind,
           cmp.config.compare.sort_text,
           cmp.config.compare.length,
@@ -53,13 +55,11 @@ return {
         },
       }
 
-      opts.mapping = vim.tbl_extend("force", opts.mapping, {
-
+      -- Make sure we have mapping properly configured
+      opts.mapping = vim.tbl_extend("force", opts.mapping or {}, {
         ["<Tab>"] = cmp.mapping(function(fallback)
           if cmp.visible() then
             cmp.select_next_item()
-            -- You could replace the expand_or_jumpable() calls with expand_or_locally_jumpable()
-            -- this way you will only jump inside the snippet region
           elseif luasnip.expand_or_jumpable() then
             luasnip.expand_or_jump()
           elseif has_words_before() then
@@ -78,6 +78,8 @@ return {
           end
         end, { "i", "s" }),
       })
+
+      return opts
     end,
   },
 }
