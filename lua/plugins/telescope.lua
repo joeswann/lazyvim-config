@@ -33,7 +33,6 @@ return {
 
     -- Custom find_files function that always starts from git root
     local function find_files_from_root()
-      -- Get the git root directory
       local git_root = vim.fn.system("git rev-parse --show-toplevel 2> /dev/null"):gsub("\n", "")
       if git_root ~= "" then
         builtin.find_files({ cwd = git_root })
@@ -43,7 +42,8 @@ return {
       end
     end
 
-    -- Set up the keymapping for find_files
+    -- Keymappings
     vim.keymap.set("n", "<leader><leader>", find_files_from_root, { noremap = true, silent = true })
+    vim.keymap.set("n", "<leader>/", builtin.live_grep, { noremap = true, silent = true })
   end,
 }

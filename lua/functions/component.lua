@@ -7,13 +7,14 @@ local utils = require("functions.utils")
 local function create_react_content(component_name)
   return string.format(
     [[
-import { DefaultComponentInterface } from "~/types/components";
-import styles from "./%s.module.scss";
-import classNames from "classnames";
+import styles from "./%s.module.css";
+import { DCI } from "~/types/DCI";
+import cn from "classnames";
 
-const %s: DefaultComponentInterface = ({ className }) => {
+const %s: DCI = ({ className }) => {
  return (
-   <div className={classNames(className, styles.container)}>
+   <div className={cn(className, styles.container)}>
+      
    </div>
  );
 };
@@ -26,10 +27,10 @@ export default %s;
   )
 end
 
--- Function to create SCSS module content
-local function create_scss_content()
+-- Function to create css module content
+local function create_css_content()
   return [[
-@import "~/styles/helpers";
+@import "~/styles/_helpers";
 
 .container {
  
@@ -52,8 +53,8 @@ end
 
 -- Function to split path and component name
 local function split_path_and_name(combined_path)
-  -- Remove trailing .tsx or .module.scss if present
-  local base_path = combined_path:gsub("%.tsx$", ""):gsub("%.module%.scss$", "")
+  -- Remove trailing .tsx or .module.css if present
+  local base_path = combined_path:gsub("%.tsx$", ""):gsub("%.module%.css$", "")
 
   -- Extract the component name (last part after / that starts with capital letter)
   local path, name = base_path:match("(.*/)?([A-Z][%w_]*)$")
@@ -78,14 +79,14 @@ local function split_path_and_name(combined_path)
   path = normalize_path(path)
 
   -- Check if original path had specific file extension
-  local create_tsx = not combined_path:match("%.module%.scss$")
-  local create_scss = not combined_path:match("%.tsx$")
+  local create_tsx = not combined_path:match("%.module%.css$")
+  local create_css = not combined_path:match("%.tsx$")
 
-  return path, name, create_tsx, create_scss
+  return path, name, create_tsx, create_css
 end
 
 -- Function to create and save component files
-local function create_component_files(path, component_name, create_tsx, create_scss)
+local function create_component_files(path, component_name, create_tsx, create_css)
   -- Get the current buffer's directory
   local current_dir = vim.fn.expand("%:p:h")
 
@@ -104,7 +105,7 @@ local function create_component_files(path, component_name, create_tsx, create_s
 
   -- Create the full paths
   local tsx_path = full_path .. component_name .. ".tsx"
-  local scss_path = full_path .. component_name .. ".module.scss"
+  local css_path = full_path .. component_name .. ".module.css"
 
   -- Create the component directory if it doesn't exist
   vim.fn.mkdir(vim.fn.fnamemodify(tsx_path, ":h"), "p")
@@ -118,16 +119,16 @@ local function create_component_files(path, component_name, create_tsx, create_s
     end
   end
 
-  -- Create and write the SCSS file if requested
-  if create_scss then
-    local scss_file = io.open(scss_path, "w")
-    if scss_file then
-      scss_file:write(create_scss_content())
-      scss_file:close()
+  -- Create and write the css file if requested
+  if create_css then
+    local css_file = io.open(css_path, "w")
+    if css_file then
+      css_file:write(create_css_content())
+      css_file:close()
     end
   end
 
-  return tsx_path, scss_path
+  return tsx_path, css_path
 end
 
 -- Function to add import statement at the top of the file
@@ -183,7 +184,7 @@ function M.create_component_with_styles()
     end
 
     -- Split the input into path and component name
-    local path, component_name, create_tsx, create_scss = split_path_and_name(combined_path)
+    local path, component_name, create_tsx, create_css = split_path_and_name(combined_path)
 
     if not path or not component_name then
       utils.show_toast("Invalid input. Must include a capitalized component name", "error")
@@ -191,7 +192,7 @@ function M.create_component_with_styles()
     end
 
     -- Create the component files
-    local tsx_path, _ = create_component_files(path, component_name, create_tsx, create_scss)
+    local tsx_path, _ = create_component_files(path, component_name, create_tsx, create_css)
 
     -- Only add import and insert component if we created a TSX file
     if create_tsx then
@@ -203,9 +204,7 @@ function M.create_component_with_styles()
     end
 
     -- Show success notification
-    local files_created = create_tsx and create_scss and "TSX and SCSS files"
-      or create_tsx and "TSX file"
-      or "SCSS file"
+    local files_created = create_tsx and create_css and "TSX and css files" or create_tsx and "TSX file" or "css file"
     utils.show_toast(string.format("Created %s for %s", files_created, component_name), "info")
   end)
 end
@@ -224,8 +223,8 @@ function M.replace_buffer_with_component()
     local buf = vim.api.nvim_get_current_buf()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(content, "\n"))
     utils.set_cursor_after_pattern("^%s*<div")
-  elseif current_file:match("%.module%.scss$") then
-    local content = create_scss_content()
+  elseif current_file:match("%.module%.css$") then
+    local content = create_css_content()
     local buf = vim.api.nvim_get_current_buf()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(content, "\n"))
     utils.set_cursor_after_pattern("^%.container {")
