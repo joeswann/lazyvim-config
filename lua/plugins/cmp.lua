@@ -1,39 +1,38 @@
--- File: ./plugins/cmp.lua
 return {
-  -- Use <tab> for completion and snippets (supertab)
-  -- first: disable default <tab> and <s-tab> behavior in LuaSnip
   {
     "L3MON4D3/LuaSnip",
     keys = function()
       return {}
     end,
   },
-  -- then: setup supertab in cmp
   {
     "hrsh7th/nvim-cmp",
     dependencies = {
       "hrsh7th/cmp-emoji",
       "lukas-reineke/cmp-under-comparator",
-      { "yetone/avante.nvim" },
+      "milanglacier/minuet-ai.nvim",
+      -- { "yetone/avante.nvim" },
     },
     opts = function(_, opts)
-      local has_words_before = function()
-        unpack = unpack or table.unpack
-        local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-        return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
-      end
-
       local luasnip = require("luasnip")
       local cmp = require("cmp")
 
-      -- Make sure we properly initialize the sources table
+      -- -- Make sure we properly initialize the sources table
       opts.sources = cmp.config.sources({
+        { name = "minuet" },
         { name = "nvim_lsp" },
         { name = "luasnip" },
         { name = "buffer" },
         { name = "path" },
-        { name = "avante" }, -- Add avante source
+        -- { name = "avante" }, -- Add avante source
       })
+
+      -- if you wish to use autocomplete
+      -- table.insert(opts.sources, 1, {
+      --   name = "minuet",
+      --   group_index = 1,
+      --   priority = 100,
+      -- })
 
       -- Set up sorting and comparators
       opts.sorting = {
@@ -55,7 +54,17 @@ return {
         },
       }
 
+      opts.performance = {
+        fetching_timeout = 2000, -- Increase timeout to 2 seconds
+      }
+
       -- Make sure we have mapping properly configured
+      local has_words_before = function()
+        unpack = unpack or table.unpack
+        local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+        return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
+      end
+
       opts.mapping = vim.tbl_extend("force", opts.mapping or {}, {
         ["<Tab>"] = cmp.mapping(function(fallback)
           if cmp.visible() then
