@@ -1,8 +1,17 @@
 return {
   {
     "L3MON4D3/LuaSnip",
-    keys = function()
-      return {}
+    event = "InsertEnter",
+    dependencies = { "rafamadriz/friendly-snippets" },
+    config = function()
+      local ls = require("luasnip")
+      require("luasnip.loaders.from_vscode").lazy_load() -- friendly-snippets
+      require("luasnip.loaders.from_lua").lazy_load({ paths = vim.fn.stdpath("config") .. "/lua/snippets" })
+      ls.config.set_config({
+        history = true,
+        updateevents = "TextChanged,TextChangedI",
+        enable_autosnippets = true,
+      })
     end,
   },
   {
@@ -17,11 +26,17 @@ return {
       local luasnip = require("luasnip")
       local cmp = require("cmp")
 
+      opts.snippet = {
+        expand = function(args)
+          luasnip.lsp_expand(args.body)
+        end,
+      }
+
       -- -- Make sure we properly initialize the sources table
       opts.sources = cmp.config.sources({
+        { name = "luasnip" },
         { name = "minuet" },
         { name = "nvim_lsp" },
-        { name = "luasnip" },
         { name = "buffer" },
         { name = "path" },
         -- { name = "avante" }, -- Add avante source

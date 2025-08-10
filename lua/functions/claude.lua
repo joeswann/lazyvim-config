@@ -6,7 +6,7 @@ local M = {}
 
 -- Configuration
 local config = {
-  model = "claude-3-haiku-latest",
+  model = "claude-sonnet-4-20250514",
   max_tokens = 4096,
   system_prompt = [[
 You are a code assistant. For each input:
