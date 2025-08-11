@@ -1,9 +1,9 @@
 local M = {}
 
 -- Import submodules
-local component = require("functions.component")
-local formatter = require("functions.formatter")
-local menu = require("functions.menu")
+local component = require("ai_functions.component")
+local formatter = require("ai_functions.formatter")
+local menu = require("ai_functions.menu")
 
 -- Re-export component functions
 M.replace_buffer_with_component = component.replace_buffer_with_component

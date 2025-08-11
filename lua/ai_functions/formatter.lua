@@ -1,8 +1,8 @@
 -- File: lua/functions/formatter.lua
 local M = {}
 
-local utils = require("functions.utils")
-local claude = require("functions.claude")
+local utils = require("ai_functions.utils")
+local claude = require("ai_functions.claude")
 
 -- Helper function to get visual selection
 local function get_visual_selection()
@@ -44,7 +44,7 @@ function M.format_claude_response()
   -- Get visual selection info BEFORE any mode changes or prompts
   local selection = nil
   local mode = vim.fn.mode()
-  if mode == "v" or mode == "V" or mode == "" then
+  if mode == "v" or mode == "V" or mode == "\22" then -- "\22" = Ctrl-V (block)
     selection = get_visual_selection()
   end
 

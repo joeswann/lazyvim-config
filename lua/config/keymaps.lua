@@ -28,14 +28,14 @@ map("n", "<leader>bb", ":Telescope buffers<CR>", { noremap = true, silent = true
 map(
   { "n", "v" },
   "<leader>r",
-  require("functions").show_function_menu,
+  require("ai_functions.init").show_function_menu,
   { noremap = true, silent = true, desc = "Show Functions Menu" }
 )
 
 map(
   { "n", "v" },
   "<leader>cf",
-  require("functions").format_claude_response,
+  require("ai_functions.init").format_claude_response,
   { noremap = true, silent = true, desc = "Format with Claude" }
 )
 

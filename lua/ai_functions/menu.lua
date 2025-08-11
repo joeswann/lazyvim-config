@@ -41,8 +41,8 @@ function M.show_function_menu()
 end
 
 local function register_default_functions()
-  local component = require("functions.component")
-  local formatter = require("functions.formatter")
+  local component = require("ai_functions.component")
+  local formatter = require("ai_functions.formatter")
 
   M.register_function("Ask Claude", formatter.format_claude_response, "Process buffer with Claude")
 

@@ -1,7 +1,7 @@
 -- File: lua/functions/component.lua
 local M = {}
 
-local utils = require("functions.utils")
+local utils = require("ai_functions.utils")
 
 -- Function to create React component content
 local function create_react_content(component_name)
