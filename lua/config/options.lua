@@ -6,4 +6,7 @@ vim.opt.shiftwidth = 2
 vim.opt.softtabstop = 2
 vim.opt.number = true
 vim.opt.relativenumber = false
-vim.g.ai_cmp = true -- enables Blink’s ghost_text
+vim.g.ai_cmp = true -- enables Blink's ghost_text
+
+-- Enable verbose logging for debugging
+vim.lsp.set_log_level("debug")
