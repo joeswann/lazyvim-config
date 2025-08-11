@@ -40,6 +40,7 @@ function M.suggest(ctx, cb)
     "You are a low-latency code completion engine for Neovim (Blink).",
     "Return ONLY the text to insert at the cursor. No markdown fences, no commentary.",
     "Honor local naming/style; use filename and recent edits to stay consistent.",
+    "Leverage JSON fields: before/after, imports (sampled), docs, siblings, lsp.diagnostics.",
     "If nothing sensible, return empty string.",
   }, "\n")
 

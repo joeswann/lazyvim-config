@@ -44,7 +44,7 @@ return {
           auto_show_delay_ms = 200,
         },
         ghost_text = {
-          enabled = vim.g.ai_cmp,
+          enabled = true,
         },
       },
 
@@ -66,6 +66,7 @@ return {
 
       keymap = {
         preset = "enter",
+        ["<CR>"] = { "select_and_accept" },
         ["<C-y>"] = { "select_and_accept" },
         -- <Tab> will be added in config() to also perform ai_accept
       },

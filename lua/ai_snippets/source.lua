@@ -14,22 +14,20 @@ function source:get_debug_name()
   return "ai_snippets"
 end
 
--- Trigger on typical word chars and after punctuation like '.' '>' ':' etc.
+-- We’ll let Blink decide the word normally; the real replacement happens via textEdit.
 function source:get_keyword_pattern()
   return [[\k\+]]
 end
 
--- Adjust how aggressively we run (avoid spamming the API).
+-- Keep triggers modest to avoid spam
 function source:get_trigger_characters()
   return { ".", ">", ":", "=", " ", "(" }
 end
 
 -- Core completion entrypoint
 function source:complete(params, callback)
-  -- Very small debounce: don’t call while typing fast
-  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
-  local before = params.context.cursor_before_line or ""
-  if before:match("^%s*$") then
+  local before_line = params.context.cursor_before_line or ""
+  if before_line:match("^%s*$") then
     return callback({ items = {}, isIncomplete = true })
   end
 
@@ -37,34 +35,61 @@ function source:complete(params, callback)
   local ai = require("ai_snippets.engine")
 
   local ctx = util.build_context({
-    max_before = 2400, -- chars before cursor
-    max_after = 1200, -- chars after cursor
+    max_before = 2400,
+    max_after = 1200,
     max_open_buffers = 3,
     max_recent_diff_lines = 120,
   })
 
-  -- Call AI for a single completion string
   ai.suggest(ctx, function(ok, text)
     if not ok or not text or text == "" then
       return callback({ items = {}, isIncomplete = true })
     end
 
-    -- Trim dangerous leading newlines to avoid odd insert points
     text = text:gsub("^\n+", "")
 
-    local items = {
-      {
-        label = (text:gsub("\n", "↵ "):sub(1, 120)),
-        insertText = text,
-        documentation = {
-          kind = "markdown",
-          value = "Smart snippet (AI-aware) based on your file, recent edits, and open buffers.",
+    local row1, _ = unpack(vim.api.nvim_win_get_cursor(0))
+    local row0 = row1 - 1
+    local curline = vim.api.nvim_get_current_line()
+
+    -- convert to UTF-16 “character” count for LSP-style ranges (Blink handles this via compat)
+    local function utf16_len(s)
+      local ok_util, util = pcall(require, "vim.lsp.util")
+      if ok_util and util then
+        local byteidx = #s
+        local ok2, u16 = pcall(util._str_utfindex_enc, s, byteidx, "utf-16")
+        if ok2 and type(u16) == "number" then
+          return u16
+        end
+      end
+      return #s -- fine for ASCII
+    end
+
+    local ecol = utf16_len(curline)
+    local label = (text:gsub("\n", "↵ "):sub(1, 120))
+
+    local item = {
+      label = label,
+
+      -- Ask Blink to REPLACE the entire current line with our suggestion
+      textEdit = {
+        newText = text,
+        range = {
+          start = { line = row0, character = 0 },
+          ["end"] = { line = row0, character = ecol },
         },
-        -- Prefer textEdit over insertText when supported
-        -- blink.compat handles mapping; keep it simple
+      },
+
+      insertTextFormat = 1, -- Plain text
+      filterText = text,
+      sortText = "\x00" .. label, -- float to the top within our provider
+      documentation = {
+        kind = "markdown",
+        value = "Smart snippet (AI-aware) — replaces current line.",
       },
     }
-    callback({ items = items, isIncomplete = true })
+
+    callback({ items = { item }, isIncomplete = false })
   end)
 end
 

@@ -5,22 +5,14 @@ local curl = require("plenary.curl")
 local function anthropic_payload(ctx)
   local system = table.concat({
     "You are a low-latency code completion engine for Neovim (Blink).",
-    "Return ONLY the text to insert at the cursor. No markdown fences, no explanations.",
-    "Prefer short, syntactic completions that match surrounding style.",
-    "Use the filename and recent edits to keep names and patterns consistent.",
+    "Return ONLY the text to insert at the cursor. No markdown fences or explanations.",
+    "Use the JSON context (filename, before/after, open_buffers, recent_edits, project_root, docs, imports, siblings, lsp.diagnostics, ts_paths).",
+    "Prefer short, syntactic completions that match local style and surrounding code.",
     "If no meaningful completion exists, return an empty string.",
   }, "\n")
 
-  local user = vim.json.encode({
-    language = ctx.language,
-    filename = ctx.filename,
-    filepath = ctx.filepath,
-    cursor = ctx.cursor,
-    before = ctx.before,
-    after = ctx.after,
-    recent_edits = ctx.recent_edits,
-    open_buffers = ctx.open_buffers,
-  })
+  -- send the full context we built in util.build_context
+  local user = vim.json.encode(ctx)
 
   return {
     url = "https://api.anthropic.com/v1/messages",
@@ -52,8 +44,13 @@ function E.suggest(ctx, cb)
     headers = req.headers,
     body = req.body,
     callback = vim.schedule_wrap(function(res)
-      if not res or res.status ~= 200 then
-        return cb(false, nil)
+      if not res then
+        vim.notify("curl: no response", vim.log.levels.ERROR)
+        return cb(false)
+      end
+      if res.status ~= 200 then
+        vim.notify(("curl HTTP %s: %s"):format(res.status, res.body or ""), vim.log.levels.ERROR)
+        return cb(false)
       end
       local ok, json = pcall(vim.json.decode, res.body or "")
       if not ok or not json or not json.content or not json.content[1] then
