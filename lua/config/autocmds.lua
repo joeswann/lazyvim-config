@@ -1,5 +1,5 @@
 -- Autocmds are automatically loaded on the VeryLazy event
--- Default autocmds that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/ladzyvim/config/autocmds.lua
+-- Default autocmds: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/autocmds.lua
 -- Add any additional autocmds here
 
 vim.api.nvim_create_autocmd("FileType", {
@@ -15,19 +15,14 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufFilePost" }, {
     local git_repo = vim.fn.system("git rev-parse --show-toplevel"):gsub("[\n\r]+", "")
     local repo_name = vim.fn.fnamemodify(git_repo, ":t")
 
-    -- Shorten the file path if it exceeds a certain length
     local max_length = 50
     if #file_path > max_length then
       local path_parts = vim.split(file_path, "/")
-      local shortened_path = ""
-
       if #path_parts > 2 then
-        shortened_path = path_parts[1] .. "/.../" .. path_parts[#path_parts]
+        file_path = path_parts[1] .. "/.../" .. path_parts[#path_parts]
       else
-        shortened_path = table.concat(path_parts, "/")
+        file_path = table.concat(path_parts, "/")
       end
-
-      file_path = shortened_path
     end
 
     vim.opt.titlestring = repo_name .. " - " .. file_path
@@ -45,14 +40,17 @@ vim.api.nvim_create_autocmd("CursorHold", {
 function OilNavigate()
   local telescope = require("telescope")
   local actions = require("telescope.actions")
+  local action_state = require("telescope.actions.state")
 
   telescope.extensions.fzf.files({
     prompt_title = "Navigate to Path",
     attach_mappings = function(prompt_bufnr, map)
       map("i", "<CR>", function()
-        local selection = actions.get_selected_entry()
+        local selection = action_state.get_selected_entry()
         actions.close(prompt_bufnr)
-        vim.cmd("Oil " .. selection.path)
+        if selection and selection.path then
+          vim.cmd("Oil " .. selection.path)
+        end
       end)
       return true
     end,

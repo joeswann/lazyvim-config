@@ -4,7 +4,6 @@ return {
     "nvim-lspconfig",
     dependencies = {
       "folke/noice.nvim",
-      "saghen/blink.cmp",
     },
 
     ---@param opts table Existing LazyVim opts for lspconfig

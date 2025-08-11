@@ -35,7 +35,7 @@ return {
       end
 
       require("nvim-tree").setup({
-        filters = { dotfiles = true },
+        filters = { dotfiles = false },
         on_attach = on_attach_change,
         update_focused_file = {
           enable = true,
