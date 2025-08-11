@@ -66,7 +66,7 @@ return {
 
       keymap = {
         preset = "enter",
-        ["<CR>"] = { "select_and_accept" },
+        -- ["<CR>"] = { "select_and_accept" },
         ["<C-y>"] = { "select_and_accept" },
         -- <Tab> will be added in config() to also perform ai_accept
       },
