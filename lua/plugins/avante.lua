@@ -1,23 +1,17 @@
 return {
   {
     "yetone/avante.nvim",
-    -- use prebuilt binaries; falls back to building via `make`
-    build = (vim.fn.has("win32") == 1) and "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false"
-      or "make",
+    build = "make",
     event = "VeryLazy",
     version = false, -- don't pin to "*"
     ---@type avante.Config
     opts = {
-      -- Use Gemini as the primary provider
-      provider = "gemini",
+      provider = "openai",
       providers = {
-        gemini = {
-          -- endpoint is optional; Avante knows Gemini,
-          -- but keeping it explicit is fine if you prefer:
-          -- endpoint = "https://generativelanguage.googleapis.com/v1beta",
-          model = "gemini-2.0-pro", -- or "gemini-2.0-flash" for snappier replies
+        openai = {
+          model = "gpt-5",
           timeout = 30000,
-          -- extra_request_body = { temperature = 0.4 },
+          temperature = 1, -- Use default supported value
         },
       },
 

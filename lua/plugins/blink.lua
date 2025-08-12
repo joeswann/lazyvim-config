@@ -55,7 +55,13 @@ return {
         -- any nvim-cmp sources added elsewhere can be enabled through compat
         compat = {},
         -- built-ins
-        default = { "lsp", "path", "snippets", "buffer", "copilot" },
+        default = {
+          "lsp",
+          "copilot",
+          "path",
+          "snippets",
+          "buffer",
+        },
         providers = {
           -- Copilot provider (optional; requires giuxtaposition/blink-cmp-copilot)
           copilot = { module = "blink-cmp-copilot", score_offset = 120, kind = "Copilot" },

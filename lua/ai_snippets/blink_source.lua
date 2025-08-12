@@ -11,14 +11,14 @@ function source.new(opts)
 end
 
 function source:enabled()
-  print("[AI_SNIPPETS] Checking enabled status...")
+  -- print("[AI_SNIPPETS] Checking enabled status...")
   local has_openrouter = vim.env.OPENROUTER_API_KEY ~= nil
   local has_anthropic = vim.env.ANTHROPIC_API_KEY ~= nil
-  print("[AI_SNIPPETS] OpenRouter key:", has_openrouter)
-  print("[AI_SNIPPETS] Anthropic key:", has_anthropic)
-  
+  -- print("[AI_SNIPPETS] OpenRouter key:", has_openrouter)
+  -- print("[AI_SNIPPETS] Anthropic key:", has_anthropic)
+
   local enabled = has_openrouter or has_anthropic
-  print("[AI_SNIPPETS] Enabled:", enabled)
+  -- print("[AI_SNIPPETS] Enabled:", enabled)
   return enabled
 end
 
@@ -28,11 +28,11 @@ end
 
 function source:get_completions(ctx, callback)
   print("[AI_SNIPPETS] get_completions called")
-  
+
   local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
-  
+
   if before_line:match("^%s*$") then
-    print("[AI_SNIPPETS] Empty line, returning no items")
+    -- print("[AI_SNIPPETS] Empty line, returning no items")
     return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
   end
 
@@ -52,9 +52,9 @@ function source:get_completions(ctx, callback)
   self.debounce_timer = vim.defer_fn(function()
     self.debounce_timer = nil
     print("[AI_SNIPPETS] Debounce complete, making request...")
-    
+
     self.current_cancel_fn = self:get_direct_completions(ctx, callback)
-  end, 750)
+  end, 200)
 
   -- Return cancel function that cancels both debounce and request
   return function()
@@ -99,13 +99,13 @@ function source:process_completions(completions, callback)
     if type(text) == "string" and text:gsub("%s", "") ~= "" then
       -- Clean up the text - keep single line for now but preserve intent
       local clean_text = text:gsub("^\n+", ""):gsub("%s+$", "")
-      
+
       --- @type lsp.CompletionItem
       local item = {
         label = clean_text:gsub("\n", "↵"):sub(1, 60) .. (clean_text:len() > 60 and "..." or ""),
         insertText = clean_text,
         insertTextFormat = vim.lsp.protocol.InsertTextFormat.PlainText,
-        kind = require('blink.cmp.types').CompletionItemKind.Text,
+        kind = require("blink.cmp.types").CompletionItemKind.Text,
         sortText = string.format("\x00%02d", i), -- maintain order
         detail = "AI Snippet #" .. i,
       }
@@ -124,8 +124,8 @@ end
 function source:resolve(item, callback)
   item = vim.deepcopy(item)
   item.documentation = {
-    kind = 'markdown',
-    value = 'AI-generated code completion based on context.',
+    kind = "markdown",
+    value = "AI-generated code completion based on context.",
   }
   callback(item)
 end

@@ -3,8 +3,14 @@ local E = {}
 local curl = require("plenary.curl")
 
 local function get_api_config()
-  -- Check for OpenRouter first, then fall back to Anthropic
-  if vim.env.OPENROUTER_API_KEY then
+  if vim.env.ANTHROPIC_API_KEY then
+    return {
+      provider = "anthropic",
+      api_key = vim.env.ANTHROPIC_API_KEY,
+      url = "https://api.anthropic.com/v1/messages",
+      model = "claude-3-haiku-20240307", -- Use Haiku for speed
+    }
+  elseif vim.env.OPENROUTER_API_KEY then
     return {
       provider = "openrouter",
       api_key = vim.env.OPENROUTER_API_KEY,
@@ -12,16 +18,9 @@ local function get_api_config()
       -- Use faster, cheaper models for quick completion
       models = {
         "anthropic/claude-3-haiku", -- Fastest Claude model
-        "openai/gpt-3.5-turbo",     -- Fast and cheap
+        "openai/gpt-3.5-turbo", -- Fast and cheap
         "meta-llama/llama-3.1-8b-instruct", -- Very fast open model
-      }
-    }
-  elseif vim.env.ANTHROPIC_API_KEY then
-    return {
-      provider = "anthropic",
-      api_key = vim.env.ANTHROPIC_API_KEY,
-      url = "https://api.anthropic.com/v1/messages",
-      model = "claude-3-haiku-20240307", -- Use Haiku for speed
+      },
     }
   end
   return nil
@@ -41,9 +40,9 @@ local function create_payload(ctx, config, model)
     language = ctx.language,
     filename = ctx.filename,
     before = ctx.before and ctx.before:sub(-1000) or "", -- Last 1000 chars
-    after = ctx.after and ctx.after:sub(1, 400) or "",   -- Next 400 chars
+    after = ctx.after and ctx.after:sub(1, 400) or "", -- Next 400 chars
   }
-  
+
   local user = vim.json.encode(simplified_ctx)
 
   if config.provider == "openrouter" then
@@ -59,7 +58,7 @@ local function create_payload(ctx, config, model)
         model = model or config.models[1],
         messages = {
           { role = "system", content = system },
-          { role = "user", content = user }
+          { role = "user", content = user },
         },
         max_tokens = 150, -- Good balance of speed and usefulness
         temperature = 0.1, -- Lower for consistency
@@ -91,7 +90,9 @@ local request_id_counter = 0
 
 --- Clean up a completion result
 local function clean_completion(text)
-  if not text or type(text) ~= "string" then return nil end
+  if not text or type(text) ~= "string" then
+    return nil
+  end
   local clean = text:gsub("^```%w*\n?", ""):gsub("\n?```%s*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
   return clean ~= "" and clean or nil
 end
@@ -99,7 +100,7 @@ end
 --- Make a single async completion request
 local function make_async_request(ctx, config, model, request_id, callback)
   local req = create_payload(ctx, config, model)
-  
+
   curl.post(req.url, {
     headers = req.headers,
     body = req.body,
@@ -109,7 +110,7 @@ local function make_async_request(ctx, config, model, request_id, callback)
       if not active_requests[request_id] then
         return
       end
-      
+
       local result = nil
       if res and res.status == 200 then
         local ok, json = pcall(vim.json.decode, res.body or "")
@@ -125,7 +126,7 @@ local function make_async_request(ctx, config, model, request_id, callback)
           end
         end
       end
-      
+
       callback(clean_completion(result))
     end),
   })
@@ -159,19 +160,19 @@ function E.suggest(ctx, cb)
   local completions = {}
   local completed_requests = 0
   local total_requests = 0
-  
+
   local function handle_completion(result)
     completed_requests = completed_requests + 1
-    
+
     if result then
       table.insert(completions, result)
     end
-    
+
     -- Return results as soon as we have at least one, or all requests complete
     if (#completions > 0 and completed_requests >= 1) or completed_requests >= total_requests then
       -- Clean up
       active_requests[request_id] = nil
-      
+
       if #completions > 0 then
         cb(true, completions)
       else
@@ -179,7 +180,7 @@ function E.suggest(ctx, cb)
       end
     end
   end
-  
+
   -- Start parallel requests
   if config.provider == "openrouter" and config.models then
     total_requests = math.min(3, #config.models)
@@ -192,7 +193,7 @@ function E.suggest(ctx, cb)
       make_async_request(ctx, config, config.model, request_id, handle_completion)
     end
   end
-  
+
   -- Return cancellation function
   return function()
     active_requests[request_id] = nil
