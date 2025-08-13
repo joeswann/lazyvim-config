@@ -32,8 +32,26 @@ return {
       opts.sources.providers = opts.sources.providers or {}
       opts.sources.providers.ai_snippets = {
         name = "AI Snippets",
-        module = "ai_snippets.blink_source",
+        module = "ai_snippets.blink_source", 
         score_offset = 200, -- Higher than copilot (120)
+        transform_items = function(_, items)
+          -- Enhance AI completion items
+          for _, item in ipairs(items) do
+            -- Add AI-specific styling
+            item.kind_icon = "🤖"
+            
+            -- Enhance label with context hints
+            if item.insertTextFormat == vim.lsp.protocol.InsertTextFormat.Snippet then
+              item.label = "✨ " .. item.label .. " (snippet)"
+            else
+              item.label = "🔮 " .. item.label .. " (ai)"
+            end
+            
+            -- Add source indication in detail
+            item.detail = (item.detail or "") .. " • AI Generated"
+          end
+          return items
+        end,
       }
     end,
   },

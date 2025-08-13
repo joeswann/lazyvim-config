@@ -28,11 +28,15 @@ end
 
 local function create_payload(ctx, config, model)
   local system = table.concat({
-    "You are a fast code completion engine for Neovim.",
+    "You are a fast code completion engine for Neovim with snippet support.",
     "Generate ONE useful completion for the cursor position.",
     "Return ONLY the completion text. No JSON, markdown, or explanations.",
     "Focus on the most likely next code that fits the pattern.",
+    "For function calls, use snippet placeholders like: myFunc(${1:param})",
+    "For assignments, use: const ${1:name} = ${2:value}",
+    "For complex structures, add numbered placeholders: ${1}, ${2}, etc.",
     "Keep it concise and relevant to the immediate context.",
+    "Use available dependencies and imports from the context.",
   }, "\n")
 
   -- Balanced context size for speed vs usefulness

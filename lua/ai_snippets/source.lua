@@ -33,10 +33,10 @@ function source:complete(params, callback)
     return callback({ items = {}, isIncomplete = true })
   end
 
-  local util = require("ai_snippets.util")
+  local context_builder = require("ai_context.builder")
   local ai = require("ai_snippets.engine")
 
-  local ctx = util.build_context({
+  local ctx = context_builder.build_context({
     max_before = 2400,
     max_after = 1200,
     max_open_buffers = 3,

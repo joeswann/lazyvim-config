@@ -11,7 +11,9 @@ return {
         openai = {
           model = "gpt-5",
           timeout = 30000,
-          temperature = 1, -- Use default supported value
+          extra_request_body = {
+            temperature = 1, -- Migrated from deprecated providers.openai.temperature
+          },
         },
       },
 

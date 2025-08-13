@@ -2,6 +2,28 @@ local U = {}
 
 local uv = vim.loop
 
+-- Filetype to module mapping
+local FILETYPE_MODULES = {
+  typescript = "typescript",
+  typescriptreact = "typescript", 
+  javascript = "typescript",
+  javascriptreact = "typescript",
+  python = "python",
+}
+
+--- Get the appropriate context module for a filetype
+---@param filetype string The filetype
+---@return table Context module
+function U.get_context_module(filetype)
+  local module_name = FILETYPE_MODULES[filetype] or "generic"
+  local ok, module = pcall(require, "ai_context." .. module_name)
+  if not ok then
+    -- Fallback to generic module
+    module = require("ai_context.generic")
+  end
+  return module
+end
+
 -- ---------- small helpers ----------
 local function clamp_tail(s, n)
   if #s <= n then
@@ -117,138 +139,23 @@ local function collect_docs(root, max_files, max_chars)
   return docs
 end
 
--- ---------- tsconfig alias parsing ----------
-local function load_ts_aliases(root)
-  local files = { "tsconfig.json", "jsconfig.json" }
-  local alias = {}
-  local baseUrlAbs = nil
-
-  for _, name in ipairs(files) do
-    local p = join(root, name)
-    if fs_exists(p) then
-      local ok, txt = pcall(vim.fn.readfile, p)
-      if ok and txt and #txt > 0 then
-        local ok2, cfg = pcall(vim.json.decode, table.concat(txt, "\n"))
-        if ok2 and cfg and cfg.compilerOptions then
-          local co = cfg.compilerOptions
-          if co.baseUrl and type(co.baseUrl) == "string" then
-            baseUrlAbs = simplify(join(root, co.baseUrl))
-          end
-          if co.paths and type(co.paths) == "table" then
-            for k, arr in pairs(co.paths) do
-              local prefix = k:gsub("/%*$", "")
-              local dest = (type(arr) == "table" and arr[1]) or arr
-              if type(dest) == "string" then
-                dest = dest:gsub("/%*$", "")
-                alias[prefix] = simplify(join(baseUrlAbs or root, dest))
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-
-  -- common custom alias: "~" → src
-  if not alias["~"] and fs_exists(join(root, "src")) then
-    alias["~"] = join(root, "src")
-  end
-
-  return alias, baseUrlAbs
-end
-
--- ---------- import resolution ----------
-local exts = { ".tsx", ".ts", ".jsx", ".js", ".d.ts", ".json", ".css", ".module.css" }
-
-local function try_resolve(base, frag)
-  -- explicit extension?
-  local candidates = {}
-  if frag:match("%.%w+$") then
-    table.insert(candidates, frag)
-  else
-    for _, e in ipairs(exts) do
-      table.insert(candidates, frag .. e)
-    end
-    for _, e in ipairs(exts) do
-      table.insert(candidates, frag .. "/index" .. e)
-    end
-  end
-  for _, c in ipairs(candidates) do
-    local p = simplify(join(base, c))
-    if fs_exists(p) then
-      return p
-    end
-  end
-  return nil
-end
-
-local function resolve_import(raw, file_dir, root, alias, baseUrlAbs)
-  if raw:match("^%.") then
-    return try_resolve(file_dir, raw)
-  end
-  if raw:match("^/") then
-    return try_resolve(root, raw)
-  end
-  -- alias prefix
-  for pref, target in pairs(alias or {}) do
-    if raw == pref or raw:sub(1, #pref + 1) == (pref .. "/") then
-      local rest = raw:sub(#pref + 2)
-      return try_resolve(target, rest)
-    end
-  end
-  -- bare import -> baseUrl or node_modules (we skip node_modules contents)
-  if baseUrlAbs then
-    local p = try_resolve(baseUrlAbs, raw)
-    if p then
-      return p
-    end
-  end
-  return nil
-end
-
-local function parse_imports(lines)
-  local imports = {}
-  for _, l in ipairs(lines) do
-    -- use quoted strings so we don't collide with ]] in long brackets
-    local m = l:match("import%s+.-from%s+['\"](.-)['\"]")
-      or l:match("import%s*%(%s*['\"](.-)['\"]%s*%)") -- dynamic import('x')
-      or l:match("require%s*%(%s*['\"](.-)['\"]%s*%)") -- require('x')
-
-    if m and not m:match("^node:") and not m:match("^https?://") then
-      table.insert(imports, m)
-    end
-  end
-  return imports
-end
-
-local function collect_import_samples(bufdir, root, alias, baseUrlAbs, lines, max_files, max_chars)
-  local found, out, seen = parse_imports(lines), {}, {}
-  for _, raw in ipairs(found) do
-    if not seen[raw] then
-      seen[raw] = true
-      local resolved = resolve_import(raw, bufdir, root, alias, baseUrlAbs)
-      if resolved and fs_exists(resolved) and not resolved:match("/node_modules/") then
-        local sample = read_head(resolved, max_chars)
-        if sample then
-          table.insert(out, { raw = raw, path = vim.fn.fnamemodify(resolved, ":~:."), sample = sample })
-          if max_files and #out >= max_files then
-            break
-          end
-        end
-      end
-    end
-  end
-  return out
-end
 
 -- ---------- sibling files ----------
 local function collect_siblings(bufpath, max_files, max_chars)
   local dir = vim.fn.fnamemodify(bufpath, ":h")
   local cur = vim.fn.fnamemodify(bufpath, ":t")
   local out, n = {}, 0
+  
+  -- Get common code file extensions
+  local code_extensions = { 
+    ".tsx", ".ts", ".jsx", ".js", ".py", ".lua", ".go", ".rs", ".rb", ".php", 
+    ".java", ".kt", ".swift", ".dart", ".ex", ".exs", ".elm", ".hs", ".ml", 
+    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cs", ".fs", ".clj", ".cljs"
+  }
+  
   for _, e in ipairs(scandir(dir, 80)) do
     if e.type == "file" and e.name ~= cur then
-      if has_suffix(e.name, { ".tsx", ".ts", ".jsx", ".js", ".css", ".module.css" }) then
+      if has_suffix(e.name, code_extensions) then
         local p = join(dir, e.name)
         local sample = read_head(p, max_chars)
         if sample then
@@ -262,6 +169,34 @@ local function collect_siblings(bufpath, max_files, max_chars)
     end
   end
   return out
+end
+
+-- ---------- dependency files ----------
+local function collect_dependency_files(root, filetype)
+  -- Load filetype-specific or generic dependency patterns
+  local context_module = U.get_context_module(filetype)
+  local dep_files = context_module.dependency_files or {}
+  
+  -- Always include some common files
+  local common_files = { "lazy-lock.json" } -- Neovim specific
+  vim.list_extend(dep_files, common_files)
+  
+  local found = {}
+  for _, filename in ipairs(dep_files) do
+    local path = join(root, filename)
+    if fs_exists(path) then
+      local content = read_head(path, 8000) -- Larger limit for dependency files
+      if content then
+        table.insert(found, { 
+          filename = filename, 
+          path = vim.fn.fnamemodify(path, ":~:."), 
+          content = content 
+        })
+      end
+    end
+  end
+  
+  return found
 end
 
 -- ---------- lsp diagnostics ----------
@@ -338,11 +273,29 @@ function U.build_context(opts)
   local cwd = uv.cwd()
   local root = project_root()
 
-  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local row, col = 1, 0
+  -- Safe cursor position handling for headless mode
+  if vim.api.nvim_get_mode().mode ~= 'c' then
+    local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
+    if ok and cursor then
+      row, col = unpack(cursor)
+    end
+  end
+  
   local all = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
-  local before = all:sub(1, vim.api.nvim_buf_get_offset(0, row - 1) + col)
-  local after = all:sub(vim.api.nvim_buf_get_offset(0, row - 1) + col + 1)
+  local before, after = "", ""
+  if #all > 0 then
+    local ok, offset = pcall(vim.api.nvim_buf_get_offset, 0, math.max(0, row - 1))
+    if ok and offset then
+      before = all:sub(1, offset + col)
+      after = all:sub(offset + col + 1)
+    else
+      -- Fallback: just use the content as-is
+      before = all
+    end
+  end
 
+  -- Build base context
   local ctx = {
     language = ft,
     filename = filename,
@@ -358,25 +311,17 @@ function U.build_context(opts)
     recent_edits = get_recent_diff_lines(file, opts.max_recent_diff_lines or 120) or "",
 
     docs = collect_docs(root, opts.max_docs or 4, opts.max_doc_chars or 2000),
+    dependencies = collect_dependency_files(root, ft),
     lsp = { diagnostics = collect_diagnostics(bufnr, opts.max_diag or 30, opts.max_diag_text or 240) },
+    
+    -- Always collect siblings for any filetype
+    siblings = collect_siblings(file, opts.max_siblings or 4, opts.max_sibling_chars or 1200),
   }
 
-  -- TS/JS/TSX/JSX: resolve imports & sample siblings for extra context
-  if ft == "typescriptreact" or ft == "typescript" or ft == "javascriptreact" or ft == "javascript" then
-    local alias, baseUrlAbs = load_ts_aliases(root)
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local bufdir = vim.fn.fnamemodify(file, ":p:h")
-    ctx.imports = collect_import_samples(
-      bufdir,
-      root,
-      alias,
-      baseUrlAbs,
-      lines,
-      opts.max_imports or 8,
-      opts.max_import_chars or 1500
-    )
-    ctx.siblings = collect_siblings(file, opts.max_siblings or 4, opts.max_sibling_chars or 1200)
-    ctx.ts_paths = { alias = alias, baseUrl = baseUrlAbs }
+  -- Get filetype-specific context enhancement
+  local context_module = U.get_context_module(ft)
+  if context_module.enhance_context then
+    ctx = context_module.enhance_context(ctx, opts)
   end
 
   return ctx
