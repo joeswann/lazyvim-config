@@ -25,6 +25,7 @@ return {
             ai_snippets = {
               name = "AI Snippets",
               module = "ai_snippets.source",
+              score_offset = 120,
             },
           },
         },

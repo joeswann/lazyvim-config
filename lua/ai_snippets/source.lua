@@ -74,7 +74,7 @@ function source:get_completions(ctx, callback)
     print("[AI_SNIPPETS] Debounce complete, making request...")
 
     self.current_cancel_fn = self:get_direct_completions(ctx, callback)
-  end, 200)
+  end, 500)
 
   -- Return cancel function that cancels both debounce and request
   return function()
@@ -100,6 +100,8 @@ function source:get_direct_completions(ctx, callback)
     max_recent_diff_lines = 120,
   })
 
+  -- print("Item context:", vim.inspect(context))
+
   return ai.suggest(context, function(ok, completions)
     if ok and completions then
       self:process_completions(completions, callback, ctx)
@@ -115,58 +117,30 @@ function source:process_completions(completions, callback, ctx)
   end
 
   local items = {}
-  for i, text in ipairs(completions) do
-    if type(text) == "string" and text:gsub("%s", "") ~= "" then
-      -- Clean up the text - keep single line for now but preserve intent
-      local clean_text = text:gsub("^\n+", ""):gsub("%s+$", "")
+  for i, completion in ipairs(completions) do
+    local text = completion.text
+    local label = text:gsub("\n", "↵"):sub(1, 60) .. (text:len() > 60 and "..." or "")
 
-      -- Create textEdit to replace from beginning of line to cursor position
-      local current_line = ctx.line or ""
-      local line_before_cursor = current_line:sub(1, ctx.cursor[2])
+    vim.inspect(completion)
 
-      -- Find the start of meaningful content (skip whitespace)
-      local start_col = line_before_cursor:match("^%s*()")
-      if not start_col then
-        start_col = 1
-      end
-
-      -- Check if text looks like it could benefit from snippet expansion
-      local has_placeholders = clean_text:match("%$%d") or clean_text:match("%${%d")
-      local insert_format = has_placeholders and vim.lsp.protocol.InsertTextFormat.Snippet
-        or vim.lsp.protocol.InsertTextFormat.PlainText
-
-      -- Convert simple patterns to snippet format if beneficial
-      local snippet_text = clean_text
-      if not has_placeholders then
-        -- Convert common patterns to snippets with placeholders
-        snippet_text = snippet_text:gsub("(%w+)%((.-)%)", "%1(${1:%2})") -- function calls
-        snippet_text = snippet_text:gsub("= ([^;,\n]+)", "= ${1:%1}") -- assignments
-        if snippet_text ~= clean_text then
-          insert_format = vim.lsp.protocol.InsertTextFormat.Snippet
-        end
-      end
-
-      --- @type lsp.CompletionItem
-      local item = {
-        label = clean_text:gsub("\n", "↵"):sub(1, 60) .. (clean_text:len() > 60 and "..." or ""),
-        insertTextFormat = insert_format,
-        kind = require("blink.cmp.types").CompletionItemKind.Snippet,
-        sortText = string.format("\x00%02d", i), -- maintain order
-        detail = "AI Generated #" .. i,
-        documentation = {
-          kind = "markdown",
-          value = "```" .. (ctx.line and vim.bo.filetype or "text") .. "\n" .. clean_text .. "\n```",
+    --- @type lsp.CompletionItem
+    local item = {
+      label = label,
+      -- kind = require("blink.cmp.types").CompletionItemKind.Text,
+      -- insertTextFormat = vim.lsp.protocol.InsertTextFormat.PlainText,
+      detail = "AI #" .. i,
+      -- sortText = string.format("\x00%02d", i), -- maintain order
+      -- insertText = text,
+      textEdit = {
+        newText = text,
+        range = {
+          start = { line = ctx.cursor[1] - 1, character = 0 },
+          ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
         },
-        textEdit = {
-          range = {
-            start = { line = ctx.cursor[1] - 1, character = start_col - 1 },
-            ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
-          },
-          newText = snippet_text,
-        },
-      }
-      table.insert(items, item)
-    end
+      },
+    }
+    -- print("Item before insert 1:", vim.inspect(item))
+    table.insert(items, item)
   end
 
   print("[AI_SNIPPETS] Generated", #items, "completions")
@@ -175,14 +149,26 @@ function source:process_completions(completions, callback, ctx)
     is_incomplete_backward = false,
     is_incomplete_forward = false,
   })
+
+  return function() end
 end
 
 function source:resolve(item, callback)
   item = vim.deepcopy(item)
-  item.documentation = {
-    kind = "markdown",
-    value = "AI-generated code completion based on context.",
-  }
+
+  -- item.documentation = {
+  --   kind = "markdown",
+  --   value = "AI-generated code completion based on context.",
+  -- }
+  -- item.additionalTextEdits = {
+  --   {
+  --     newText = 'foo',
+  --     range = {
+  --       start = { line = 0, character = 0 },
+  --       ['end'] = { line = 0, character = 0 },
+  --     },
+  --   },
+  -- }
   callback(item)
 end
 

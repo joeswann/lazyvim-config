@@ -17,22 +17,26 @@ end
 local function create_payload(ctx, config, model)
   local system = table.concat({
     "You are a fast code completion engine for Neovim with snippet support.",
-    "Generate ONE useful completion for the cursor position.",
-    "Return ONLY the completion text. No JSON, markdown, or explanations.",
+    "You will receive context with 'before' (lines before cursor), 'current' (text on current line up to cursor), and 'after' (lines after cursor).",
+    "Generate ONE useful completion and respond with JSON in this EXACT format:",
+    '{"text": "completion text here", "label": "short description", "range": {"start_line": 0, "start_col": 0, "end_line": 0, "end_col": 5}}',
+    "- text: The completion text with snippet placeholders like ${1:param}, ${2:value}",
+    "- label: A short, descriptive label for what this completion does",
+    "- range: The text range to replace (0-based line/column numbers relative to cursor position)",
+    "  - start_line/start_col: How many lines/cols before cursor to start replacing (usually 0,0 for cursor position)",
+    "  - end_line/end_col: How many lines/cols after cursor to end replacing",
     "Focus on the most likely next code that fits the pattern.",
-    "For function calls, use snippet placeholders like: myFunc(${1:param})",
-    "For assignments, use: const ${1:name} = ${2:value}",
-    "For complex structures, add numbered placeholders: ${1}, ${2}, etc.",
-    "Keep it concise and relevant to the immediate context.",
     "Use available dependencies and imports from the context.",
+    "Return ONLY valid JSON, no markdown or explanations.",
   }, "\n")
 
-  -- Balanced context size for speed vs usefulness
+  -- Use the new context structure
   local simplified_ctx = {
     language = ctx.language,
     filename = ctx.filename,
-    before = ctx.before and ctx.before:sub(-1000) or "", -- Last 1000 chars
-    after = ctx.after and ctx.after:sub(1, 400) or "", -- Next 400 chars
+    before = ctx.before and ctx.before:sub(-1000) or "", -- Last 1000 chars of before
+    current = ctx.current or "", -- Current line text up to cursor
+    after = ctx.after and ctx.after:sub(1, 400) or "", -- Next 400 chars of after
   }
 
   local user = vim.json.encode(simplified_ctx)
@@ -58,13 +62,38 @@ end
 local active_requests = {}
 local request_id_counter = 0
 
---- Clean up a completion result
-local function clean_completion(text)
+--- Parse and clean up a completion result from JSON
+local function parse_completion(text)
   if not text or type(text) ~= "string" then
     return nil
   end
-  local clean = text:gsub("^```%w*\n?", ""):gsub("\n?```%s*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
-  return clean ~= "" and clean or nil
+  
+  -- Clean markdown if present
+  local clean_text = text:gsub("^```json\n?", ""):gsub("\n?```%s*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  
+  -- Try to parse as JSON
+  local ok, result = pcall(vim.json.decode, clean_text)
+  if ok and result and type(result) == "table" then
+    -- Validate required fields
+    if result.text and result.label and result.range then
+      return {
+        text = result.text,
+        label = result.label,
+        range = result.range
+      }
+    end
+  end
+  
+  -- Fallback: treat as plain text completion
+  if clean_text ~= "" then
+    return {
+      text = clean_text,
+      label = clean_text:gsub("\n", "↵"):sub(1, 40) .. (clean_text:len() > 40 and "..." or ""),
+      range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 }
+    }
+  end
+  
+  return nil
 end
 
 --- Make a single async completion request
@@ -91,7 +120,7 @@ local function make_async_request(ctx, config, model, request_id, callback)
         end
       end
 
-      callback(clean_completion(result))
+      callback(parse_completion(result))
     end),
   })
 end

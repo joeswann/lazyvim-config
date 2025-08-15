@@ -3,7 +3,7 @@ local M = {}
 local curl = require("plenary.curl")
 
 -- Config via env; sensible defaults
-local MODEL = vim.env.AI_ENGINE_MODEL or "claude-3-5-sonnet-20240620"
+local MODEL = vim.env.AI_ENGINE_MODEL or "claude-sonnet-4-20250514"
 local MAX_TOKENS = tonumber(vim.env.AI_ENGINE_MAX_TOKENS or "120")
 local TEMP_COMPLETION = tonumber(vim.env.AI_ENGINE_TEMP_COMPLETION or "0.2")
 local TEMP_FORMAT = tonumber(vim.env.AI_ENGINE_TEMP_FORMAT or "0.3")
@@ -37,11 +37,18 @@ end
 
 function M.suggest(ctx, cb)
   local system = table.concat({
-    "You are a low-latency code completion engine for Neovim (Blink).",
-    "Return ONLY the text to insert at the cursor. No markdown fences, no commentary.",
-    "Honor local naming/style; use filename and recent edits to stay consistent.",
-    "Leverage JSON fields: before/after, imports (sampled), docs, siblings, lsp.diagnostics.",
-    "If nothing sensible, return empty string.",
+    "You are a fast code completion engine for Neovim with snippet support.",
+    "You will receive context with 'before' (lines before cursor), 'current' (text on current line up to cursor), and 'after' (lines after cursor).",
+    "Generate ONE useful completion and respond with JSON in this EXACT format:",
+    '{"text": "completion text here", "label": "short description", "range": {"start_line": 0, "start_col": 0, "end_line": 0, "end_col": 5}}',
+    "- text: The completion text with snippet placeholders like ${1:param}, ${2:value}",
+    "- label: A short, descriptive label for what this completion does",
+    "- range: The text range to replace (0-based line/column numbers relative to cursor position)",
+    "  - start_line/start_col: How many lines/cols before cursor to start replacing (usually 0,0 for cursor position)",
+    "  - end_line/end_col: How many lines/cols after cursor to end replacing",
+    "Focus on the most likely next code that fits the pattern.",
+    "Use available dependencies and imports from the context.",
+    "Return ONLY valid JSON, no markdown or explanations.",
   }, "\n")
 
   post_anthropic({
