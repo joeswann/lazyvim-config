@@ -5,7 +5,7 @@ local uv = vim.loop
 -- Filetype to module mapping
 local FILETYPE_MODULES = {
   typescript = "typescript",
-  typescriptreact = "typescript", 
+  typescriptreact = "typescript",
   javascript = "typescript",
   javascriptreact = "typescript",
   python = "python",
@@ -139,20 +139,45 @@ local function collect_docs(root, max_files, max_chars)
   return docs
 end
 
-
 -- ---------- sibling files ----------
 local function collect_siblings(bufpath, max_files, max_chars)
   local dir = vim.fn.fnamemodify(bufpath, ":h")
   local cur = vim.fn.fnamemodify(bufpath, ":t")
   local out, n = {}, 0
-  
+
   -- Get common code file extensions
-  local code_extensions = { 
-    ".tsx", ".ts", ".jsx", ".js", ".py", ".lua", ".go", ".rs", ".rb", ".php", 
-    ".java", ".kt", ".swift", ".dart", ".ex", ".exs", ".elm", ".hs", ".ml", 
-    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".cs", ".fs", ".clj", ".cljs"
+  local code_extensions = {
+    ".tsx",
+    ".ts",
+    ".jsx",
+    ".js",
+    ".py",
+    ".lua",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".java",
+    ".kt",
+    ".swift",
+    ".dart",
+    ".ex",
+    ".exs",
+    ".elm",
+    ".hs",
+    ".ml",
+    ".c",
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".fs",
+    ".clj",
+    ".cljs",
   }
-  
+
   for _, e in ipairs(scandir(dir, 80)) do
     if e.type == "file" and e.name ~= cur then
       if has_suffix(e.name, code_extensions) then
@@ -176,26 +201,26 @@ local function collect_dependency_files(root, filetype)
   -- Load filetype-specific or generic dependency patterns
   local context_module = U.get_context_module(filetype)
   local dep_files = context_module.dependency_files or {}
-  
+
   -- Always include some common files
   local common_files = { "lazy-lock.json" } -- Neovim specific
   vim.list_extend(dep_files, common_files)
-  
+
   local found = {}
   for _, filename in ipairs(dep_files) do
     local path = join(root, filename)
     if fs_exists(path) then
       local content = read_head(path, 8000) -- Larger limit for dependency files
       if content then
-        table.insert(found, { 
-          filename = filename, 
-          path = vim.fn.fnamemodify(path, ":~:."), 
-          content = content 
+        table.insert(found, {
+          filename = filename,
+          path = vim.fn.fnamemodify(path, ":~:."),
+          content = content,
         })
       end
     end
   end
-  
+
   return found
 end
 
@@ -275,13 +300,13 @@ function U.build_context(opts)
 
   local row, col = 1, 0
   -- Safe cursor position handling for headless mode
-  if vim.api.nvim_get_mode().mode ~= 'c' then
+  if vim.api.nvim_get_mode().mode ~= "c" then
     local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
     if ok and cursor then
       row, col = unpack(cursor)
     end
   end
-  
+
   local all = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
   local before, after = "", ""
   if #all > 0 then
@@ -313,7 +338,7 @@ function U.build_context(opts)
     docs = collect_docs(root, opts.max_docs or 4, opts.max_doc_chars or 2000),
     dependencies = collect_dependency_files(root, ft),
     lsp = { diagnostics = collect_diagnostics(bufnr, opts.max_diag or 30, opts.max_diag_text or 240) },
-    
+
     -- Always collect siblings for any filetype
     siblings = collect_siblings(file, opts.max_siblings or 4, opts.max_sibling_chars or 1200),
   }

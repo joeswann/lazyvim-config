@@ -1,83 +1,189 @@
-local M = {}
-
--- nvim-cmp-compatible source (blink.compat will consume this)
+--- @module 'blink.cmp'
+--- @class blink.cmp.Source
 local source = {}
-source.new = function()
-  return setmetatable({}, { __index = source })
+
+function source.new(opts)
+  local self = setmetatable({}, { __index = source })
+  self.opts = opts or {}
+  self.debounce_timer = nil
+  self.current_cancel_fn = nil
+  return self
 end
 
-function source:is_available()
-  local available = vim.env.ANTHROPIC_API_KEY ~= nil
-  print("[AI_SNIPPETS] is_available:", available)
-  return available
+function source:enabled()
+  -- print("[AI_SNIPPETS] Checking enabled status...")
+  local has_anthropic = vim.env.ANTHROPIC_API_KEY ~= nil
+
+  local enabled = has_anthropic
+  -- print("[AI_SNIPPETS] Enabled:", enabled)
+  return enabled
 end
 
-function source:get_debug_name()
-  return "ai_snippets"
-end
-
--- Use standard keyword pattern for better compatibility
-function source:get_keyword_pattern()
-  return [[\k\+]]
-end
-
--- Keep triggers modest to avoid spam
 function source:get_trigger_characters()
-  return { ".", ">", ":", "=", " ", "(" }
+  -- Enhanced trigger characters for better AI completion timing
+  return {
+    ".",
+    ">",
+    ":",
+    "=",
+    " ",
+    "(",
+    "[",
+    "{", -- Original triggers
+    "\n",
+    "}",
+    ")",
+    "]",
+    ";",
+    ",", -- Additional triggers for snippet expansion
+    "f",
+    "c",
+    "i",
+    "a",
+    "v",
+    "l",
+    "d", -- Common word starts that benefit from AI
+  }
 end
 
--- Core completion entrypoint
-function source:complete(params, callback)
-  local before_line = params.context.cursor_before_line or ""
+function source:get_completions(ctx, callback)
+  print("[AI_SNIPPETS] get_completions called")
+
+  local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
+
   if before_line:match("^%s*$") then
-    return callback({ items = {}, isIncomplete = true })
+    print("[AI_SNIPPETS] Empty line, returning no items")
+    return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
   end
 
+  -- Cancel any existing request
+  if self.current_cancel_fn then
+    self.current_cancel_fn()
+    self.current_cancel_fn = nil
+  end
+
+  -- Cancel existing debounce timer
+  if self.debounce_timer then
+    self.debounce_timer:stop()
+    self.debounce_timer = nil
+  end
+
+  -- Debounce the request (750ms like copilot)
+  self.debounce_timer = vim.defer_fn(function()
+    self.debounce_timer = nil
+    print("[AI_SNIPPETS] Debounce complete, making request...")
+
+    self.current_cancel_fn = self:get_direct_completions(ctx, callback)
+  end, 200)
+
+  -- Return cancel function that cancels both debounce and request
+  return function()
+    if self.debounce_timer then
+      self.debounce_timer:stop()
+      self.debounce_timer = nil
+    end
+    if self.current_cancel_fn then
+      self.current_cancel_fn()
+      self.current_cancel_fn = nil
+    end
+  end
+end
+
+function source:get_direct_completions(ctx, callback)
   local context_builder = require("ai_context.builder")
   local ai = require("ai_snippets.engine")
 
-  local ctx = context_builder.build_context({
+  local context = context_builder.build_context({
     max_before = 2400,
     max_after = 1200,
     max_open_buffers = 3,
     max_recent_diff_lines = 120,
   })
 
-  ai.suggest(ctx, function(ok, text)
-    if not ok or not text or text == "" then
-      return callback({ items = {}, isIncomplete = true })
+  return ai.suggest(context, function(ok, completions)
+    if ok and completions then
+      self:process_completions(completions, callback, ctx)
+    else
+      callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
     end
-
-    -- Clean up the text and make it single line for testing
-    text = text:gsub("^\n+", ""):gsub("\n.*", "")  -- Take only first line
-    local label = text:sub(1, 50)  -- Shorter label
-
-    local item = {
-      label = text,  -- Use the actual text as label
-      insertText = text,
-      insertTextFormat = 1, -- Plain text  
-      kind = 1, -- Text completion kind
-      sortText = "\x00" .. text, -- float to the top within our provider
-    }
-
-    print("[AI_SNIPPETS] Generated item:", vim.inspect(item))
-    print("[AI_SNIPPETS] Callback structure:", vim.inspect({ items = { item }, isIncomplete = false }))
-    callback({ items = { item }, isIncomplete = false })
   end)
 end
 
--- Expose the source constructor
-function M.new()
-  return source.new()
-end
-
--- Blink compat expects a cmp-style registration
-function M.register()
-  local ok, cmp = pcall(require, "cmp")
-  if not ok then
-    return
+function source:process_completions(completions, callback, ctx)
+  if not completions or #completions == 0 then
+    return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
   end
-  cmp.register_source("ai_snippets", M.new())
+
+  local items = {}
+  for i, text in ipairs(completions) do
+    if type(text) == "string" and text:gsub("%s", "") ~= "" then
+      -- Clean up the text - keep single line for now but preserve intent
+      local clean_text = text:gsub("^\n+", ""):gsub("%s+$", "")
+
+      -- Create textEdit to replace from beginning of line to cursor position
+      local current_line = ctx.line or ""
+      local line_before_cursor = current_line:sub(1, ctx.cursor[2])
+
+      -- Find the start of meaningful content (skip whitespace)
+      local start_col = line_before_cursor:match("^%s*()")
+      if not start_col then
+        start_col = 1
+      end
+
+      -- Check if text looks like it could benefit from snippet expansion
+      local has_placeholders = clean_text:match("%$%d") or clean_text:match("%${%d")
+      local insert_format = has_placeholders and vim.lsp.protocol.InsertTextFormat.Snippet
+        or vim.lsp.protocol.InsertTextFormat.PlainText
+
+      -- Convert simple patterns to snippet format if beneficial
+      local snippet_text = clean_text
+      if not has_placeholders then
+        -- Convert common patterns to snippets with placeholders
+        snippet_text = snippet_text:gsub("(%w+)%((.-)%)", "%1(${1:%2})") -- function calls
+        snippet_text = snippet_text:gsub("= ([^;,\n]+)", "= ${1:%1}") -- assignments
+        if snippet_text ~= clean_text then
+          insert_format = vim.lsp.protocol.InsertTextFormat.Snippet
+        end
+      end
+
+      --- @type lsp.CompletionItem
+      local item = {
+        label = clean_text:gsub("\n", "↵"):sub(1, 60) .. (clean_text:len() > 60 and "..." or ""),
+        insertTextFormat = insert_format,
+        kind = require("blink.cmp.types").CompletionItemKind.Snippet,
+        sortText = string.format("\x00%02d", i), -- maintain order
+        detail = "AI Generated #" .. i,
+        documentation = {
+          kind = "markdown",
+          value = "```" .. (ctx.line and vim.bo.filetype or "text") .. "\n" .. clean_text .. "\n```",
+        },
+        textEdit = {
+          range = {
+            start = { line = ctx.cursor[1] - 1, character = start_col - 1 },
+            ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
+          },
+          newText = snippet_text,
+        },
+      }
+      table.insert(items, item)
+    end
+  end
+
+  print("[AI_SNIPPETS] Generated", #items, "completions")
+  callback({
+    items = items,
+    is_incomplete_backward = false,
+    is_incomplete_forward = false,
+  })
 end
 
-return M
+function source:resolve(item, callback)
+  item = vim.deepcopy(item)
+  item.documentation = {
+    kind = "markdown",
+    value = "AI-generated code completion based on context.",
+  }
+  callback(item)
+end
+
+return source
