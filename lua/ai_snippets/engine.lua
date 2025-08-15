@@ -17,10 +17,10 @@ end
 local function create_payload(ctx, config, model)
   local system = table.concat({
     "You are a fast code completion engine for Neovim with snippet support.",
-    "You will receive context with 'before' (lines before cursor), 'current' (text on current line up to cursor), and 'after' (lines after cursor).",
+    "You will receive context including details such as 'before' (lines before cursor), 'current' (text on current line up to cursor), and 'after' (lines after cursor).",
     "Generate ONE useful completion and respond with JSON in this EXACT format:",
     '{"text": "completion text here", "label": "short description", "range": {"start_line": 0, "start_col": 0, "end_line": 0, "end_col": 5}}',
-    "- text: The completion text with snippet placeholders like ${1:param}, ${2:value}",
+    "- text: The completion text",
     "- label: A short, descriptive label for what this completion does",
     "- range: The text range to replace (0-based line/column numbers relative to cursor position)",
     "  - start_line/start_col: How many lines/cols before cursor to start replacing (usually 0,0 for cursor position)",
@@ -67,10 +67,10 @@ local function parse_completion(text)
   if not text or type(text) ~= "string" then
     return nil
   end
-  
+
   -- Clean markdown if present
   local clean_text = text:gsub("^```json\n?", ""):gsub("\n?```%s*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
-  
+
   -- Try to parse as JSON
   local ok, result = pcall(vim.json.decode, clean_text)
   if ok and result and type(result) == "table" then
@@ -79,20 +79,20 @@ local function parse_completion(text)
       return {
         text = result.text,
         label = result.label,
-        range = result.range
+        range = result.range,
       }
     end
   end
-  
+
   -- Fallback: treat as plain text completion
   if clean_text ~= "" then
     return {
       text = clean_text,
       label = clean_text:gsub("\n", "↵"):sub(1, 40) .. (clean_text:len() > 40 and "..." or ""),
-      range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 }
+      range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 },
     }
   end
-  
+
   return nil
 end
 

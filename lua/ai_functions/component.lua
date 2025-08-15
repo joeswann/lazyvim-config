@@ -7,7 +7,7 @@ local utils = require("ai_functions.utils")
 local function create_react_content(component_name)
   return string.format(
     [[
-import styles from "./%s.module.css";
+import styles from "./%s.module.scss";
 import { DCI } from "~/types/DCI";
 import cn from "classnames";
 

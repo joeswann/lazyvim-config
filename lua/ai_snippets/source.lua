@@ -47,12 +47,12 @@ function source:get_trigger_characters()
 end
 
 function source:get_completions(ctx, callback)
-  print("[AI_SNIPPETS] get_completions called")
+  -- print("[AI_SNIPPETS] get_completions called")
 
   local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
 
   if before_line:match("^%s*$") then
-    print("[AI_SNIPPETS] Empty line, returning no items")
+    -- print("[AI_SNIPPETS] Empty line, returning no items")
     return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
   end
 
@@ -71,7 +71,7 @@ function source:get_completions(ctx, callback)
   -- Debounce the request (750ms like copilot)
   self.debounce_timer = vim.defer_fn(function()
     self.debounce_timer = nil
-    print("[AI_SNIPPETS] Debounce complete, making request...")
+    -- print("[AI_SNIPPETS] Debounce complete, making request...")
 
     self.current_cancel_fn = self:get_direct_completions(ctx, callback)
   end, 500)
@@ -121,29 +121,28 @@ function source:process_completions(completions, callback, ctx)
     local text = completion.text
     local label = text:gsub("\n", "↵"):sub(1, 60) .. (text:len() > 60 and "..." or "")
 
-    vim.inspect(completion)
-
     --- @type lsp.CompletionItem
     local item = {
-      label = label,
+      -- insertText = text,
       -- kind = require("blink.cmp.types").CompletionItemKind.Text,
       -- insertTextFormat = vim.lsp.protocol.InsertTextFormat.PlainText,
-      detail = "AI #" .. i,
       -- sortText = string.format("\x00%02d", i), -- maintain order
-      -- insertText = text,
+      label = label,
+      detail = "AI #" .. i,
       textEdit = {
         newText = text,
         range = {
-          start = { line = ctx.cursor[1] - 1, character = 0 },
+          start = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
           ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
         },
       },
     }
+    print(vim.inspect(completion))
     -- print("Item before insert 1:", vim.inspect(item))
     table.insert(items, item)
   end
 
-  print("[AI_SNIPPETS] Generated", #items, "completions")
+  -- print("[AI_SNIPPETS] Generated", #items, "completions")
   callback({
     items = items,
     is_incomplete_backward = false,

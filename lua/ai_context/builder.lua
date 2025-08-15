@@ -309,12 +309,12 @@ function U.build_context(opts)
 
   -- Get all lines from buffer
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  
+
   -- Split into before (lines before current), current (text on current line), and after (lines after current)
   local before_lines = {}
   local current_line = ""
   local after_lines = {}
-  
+
   if #lines > 0 then
     -- Lines before current line
     for i = 1, math.max(0, row - 1) do
@@ -322,12 +322,12 @@ function U.build_context(opts)
         table.insert(before_lines, lines[i])
       end
     end
-    
+
     -- Current line up to cursor position
     if lines[row] then
       current_line = lines[row]:sub(1, col)
     end
-    
+
     -- Lines after current line
     for i = row + 1, #lines do
       if lines[i] then
@@ -335,29 +335,30 @@ function U.build_context(opts)
       end
     end
   end
-  
+
   local before = table.concat(before_lines, "\n")
   local current = current_line
   local after = table.concat(after_lines, "\n")
 
   -- Build base context
   local ctx = {
+    cwd = cwd,
     language = ft,
     filename = filename,
     filepath = vim.fn.fnamemodify(file, ":~:."),
     project_root = vim.fn.fnamemodify(root, ":~:."),
-    cwd = cwd,
     cursor = { row = row, col = col },
 
     before = clamp_tail(before, opts.max_before or 2400),
     current = current,
     after = clamp_head(after, opts.max_after or 1200),
 
+    dependencies = collect_dependency_files(root, ft),
+
     -- open_buffers = get_open_buffers(opts.max_open_buffers or 3, opts.max_open_buf_chars or 1200),
     -- recent_edits = get_recent_diff_lines(file, opts.max_recent_diff_lines or 120) or "",
 
     -- docs = collect_docs(root, opts.max_docs or 4, opts.max_doc_chars or 2000),
-    -- dependencies = collect_dependency_files(root, ft),
     -- lsp = { diagnostics = collect_diagnostics(bufnr, opts.max_diag or 30, opts.max_diag_text or 240) },
 
     -- Always collect siblings for any filetype
