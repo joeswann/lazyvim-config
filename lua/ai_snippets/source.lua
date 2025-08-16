@@ -74,7 +74,7 @@ function source:get_completions(ctx, callback)
     -- print("[AI_SNIPPETS] Debounce complete, making request...")
 
     self.current_cancel_fn = self:get_direct_completions(ctx, callback)
-  end, 500)
+  end, 300)
 
   -- Return cancel function that cancels both debounce and request
   return function()

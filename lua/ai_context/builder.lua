@@ -288,6 +288,61 @@ local function get_recent_diff_lines(filepath, max_lines)
   return (#lines > 0) and table.concat(lines, "\n") or nil
 end
 
+-- Add near the other helper functions
+
+local function collect_github_similar_files(filename, opts)
+  local ok, github = pcall(require, "ai_context.github")
+  if not ok then
+    return {}
+  end
+
+  -- Only search for meaningful filenames (not index.tsx, etc.)
+  local skip_patterns = {
+    "^index%.",
+    "^main%.",
+    "^app%.",
+    "^init%.",
+    "^config%.",
+    "^setup%.",
+    "^test%.",
+    "^spec%.",
+  }
+
+  for _, pattern in ipairs(skip_patterns) do
+    if filename:match(pattern) then
+      return {}
+    end
+  end
+
+  -- Get the current git repo name to exclude it
+  local current_repo = vim.fn.system("git rev-parse --show-toplevel 2>/dev/null"):match("([^/]+)$")
+  current_repo = current_repo and current_repo:gsub("%s+", "") or nil
+
+  -- Safely call search_similar_files with error handling
+  local ok_search, results = pcall(github.search_similar_files, filename, {
+    max_results = opts.max_github_files or 2,
+    exclude_repos = current_repo and { current_repo } or {},
+  })
+
+  if not ok_search then
+    return {}
+  end
+
+  -- Format results for context
+  local formatted = {}
+  for _, result in ipairs(results or {}) do
+    if result and result.content then
+      table.insert(formatted, {
+        repo = result.repo,
+        path = result.path,
+        url = result.html_url,
+        content = result.content:sub(1, opts.max_github_content or 3000),
+      })
+    end
+  end
+
+  return formatted
+end
 -- ---------- public: build_context ----------
 function U.build_context(opts)
   opts = opts or {}
@@ -297,6 +352,9 @@ function U.build_context(opts)
   local bufnr = vim.api.nvim_get_current_buf()
   local cwd = uv.cwd()
   local root = project_root()
+
+  print("[AI Context] Building context for file:", filename, "filetype:", ft)
+  print("[AI Context] Project root:", root)
 
   local row, col = 1, 0
   -- Safe cursor position handling for headless mode
@@ -341,6 +399,15 @@ function U.build_context(opts)
   local after = table.concat(after_lines, "\n")
 
   -- Build base context
+  local github_similar = collect_github_similar_files(filename, opts)
+  print("[AI Context] GitHub similar files found:", #github_similar)
+  if #github_similar > 0 then
+    print("[AI Context] GitHub similar files:")
+    for i, file in ipairs(github_similar) do
+      print("  ", i, file.repo .. "/" .. file.path, "(" .. #file.content .. " chars)")
+    end
+  end
+
   local ctx = {
     cwd = cwd,
     language = ft,
@@ -354,6 +421,8 @@ function U.build_context(opts)
     after = clamp_head(after, opts.max_after or 1200),
 
     dependencies = collect_dependency_files(root, ft),
+
+    github_similar = github_similar,
 
     -- open_buffers = get_open_buffers(opts.max_open_buffers or 3, opts.max_open_buf_chars or 1200),
     -- recent_edits = get_recent_diff_lines(file, opts.max_recent_diff_lines or 120) or "",
@@ -370,6 +439,18 @@ function U.build_context(opts)
   if context_module.enhance_context then
     ctx = context_module.enhance_context(ctx, opts)
   end
+
+  print("[AI Context] Final context structure:")
+  print(vim.inspect({
+    language = ctx.language,
+    filename = ctx.filename,
+    cursor_pos = ctx.cursor,
+    current_text_length = #ctx.current,
+    before_text_length = #ctx.before,
+    after_text_length = #ctx.after,
+    dependencies_count = #ctx.dependencies,
+    github_similar_count = #ctx.github_similar,
+  }))
 
   return ctx
 end

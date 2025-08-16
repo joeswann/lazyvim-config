@@ -13,7 +13,6 @@ local function get_api_config()
   end
   return nil
 end
-
 local function create_payload(ctx, config, model)
   local system = table.concat({
     "You are a fast code completion engine for Neovim.",
@@ -24,26 +23,28 @@ local function create_payload(ctx, config, model)
     "- snippets: array of {name, array_text} with snippet definitions",
     "- imports: already imported modules with their code samples",
     "- dependencies: available packages",
+    "- github_similar: similar files from other projects with the same name",
     "",
     "COMPLETION RULES:",
-    "1. If current text matches a snippet pattern from context.snippets, expand that snippet",
-    "   Example: '<Sanity' → '<SanityImage asset={} alt={} />' if SanityImage snippet exists",
-    "2. Complete based on patterns in existing code and imports",
-    "3. If the completion uses components/modules not yet imported, include additionalTextEdits to add the import",
+    "1. Analyze the context to understand what the user is typing",
+    "2. If github_similar contains files, use their patterns as hints but ONLY when relevant",
+    "3. Only use snippets from context.snippets when the user is actually typing something that matches",
+    "4. Focus on completing what the user is CURRENTLY typing, not random suggestions",
     "",
-    "Response JSON format:",
+    "IMPORTANT RULES:",
+    "- If user is typing 'HomeSec', complete it to 'HomeSections' or similar, NOT 'SanityImage'",
+    "- Match the user's typing pattern - don't suggest unrelated components",
+    "- Only suggest from context.snippets if it matches what's being typed",
+    "",
+    "Response must be ONLY valid JSON in this exact format:",
     '{"completion": "code to insert", "label": "description", "range": {...}, "additionalTextEdits": [...]}',
-    "- completion: The actual code to insert at cursor",
+    "- completion: The actual code to insert at cursor (just the code, no JSON)",
     "- label: Brief description (max 40 chars)",
-    "- range: {start_line: 0, start_col: 0, end_line: 0, end_col: N} where N is chars to replace after cursor",
-    "- additionalTextEdits: (optional) Array of edits to add imports:",
-    '    [{"newText": "import X from \'Y\';\\n", "range": {"start": {"line": 3, "character": 0}, "end": {"line": 3, "character": 0}}}]',
-    "    Place imports after existing imports (look at line numbers in context.before)",
+    "- range: {start_line: 0, start_col: 0, end_line: 0, end_col: N}",
+    "- additionalTextEdits: (optional) Array of edits to add imports",
     "",
-    "IMPORTANT: additionalTextEdits must use LSP TextEdit format with start/end positions",
-    "The line numbers should be absolute (0-based) - count newlines in context.before to find import location",
-    "",
-    "Return ONLY valid JSON, no markdown.",
+    "CRITICAL: Return ONLY the JSON object, no markdown, no backticks, no explanation.",
+    "The 'completion' field must contain ONLY the code to insert, not JSON.",
   }, "\n")
 
   local user = vim.json.encode(ctx)
@@ -79,29 +80,30 @@ local function parse_completion(text)
   -- Try to parse as JSON
   local ok, result = pcall(vim.json.decode, clean_text)
   if ok and result and type(result) == "table" then
-    -- Validate required fields (now "completion" instead of "text")
+    -- Validate required fields
     if result.completion and result.label and result.range then
       return {
-        completion = result.completion, -- Changed from "text"
+        completion = result.completion,
         label = result.label,
         range = result.range,
-        additionalTextEdits = result.additionalTextEdits, -- Direct pass-through
+        additionalTextEdits = result.additionalTextEdits,
       }
     end
   end
 
-  -- Fallback: treat as plain text completion
-  if clean_text ~= "" then
+  -- IMPORTANT: Don't return raw JSON as fallback
+  -- Only return plain text if it doesn't look like JSON
+  if not clean_text:match("^%s*{") and not clean_text:match("completion") then
     return {
-      completion = clean_text, -- Changed from "text"
+      completion = clean_text,
       label = clean_text:gsub("\n", "↵"):sub(1, 40) .. (clean_text:len() > 40 and "..." or ""),
       range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 },
     }
   end
 
+  -- If it looks like JSON but failed to parse, return nil
   return nil
-end
---- Make a single async completion request
+end --- Make a single async completion request
 local function make_async_request(ctx, config, model, request_id, callback)
   local req = create_payload(ctx, config, model)
 
