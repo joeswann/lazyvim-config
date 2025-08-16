@@ -349,8 +349,8 @@ function U.build_context(opts)
     project_root = vim.fn.fnamemodify(root, ":~:."),
     cursor = { row = row, col = col },
 
-    before = clamp_tail(before, opts.max_before or 2400),
     current = current,
+    before = clamp_tail(before, opts.max_before or 2400),
     after = clamp_head(after, opts.max_after or 1200),
 
     dependencies = collect_dependency_files(root, ft),

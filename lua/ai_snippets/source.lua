@@ -118,15 +118,11 @@ function source:process_completions(completions, callback, ctx)
 
   local items = {}
   for i, completion in ipairs(completions) do
-    local text = completion.text
-    local label = text:gsub("\n", "↵"):sub(1, 60) .. (text:len() > 60 and "..." or "")
+    local text = completion.completion -- Changed from completion.text
+    local label = completion.label or (text:gsub("\n", "↵"):sub(1, 60) .. (text:len() > 60 and "..." or ""))
 
     --- @type lsp.CompletionItem
     local item = {
-      -- insertText = text,
-      -- kind = require("blink.cmp.types").CompletionItemKind.Text,
-      -- insertTextFormat = vim.lsp.protocol.InsertTextFormat.PlainText,
-      -- sortText = string.format("\x00%02d", i), -- maintain order
       label = label,
       detail = "AI #" .. i,
       textEdit = {
@@ -136,13 +132,14 @@ function source:process_completions(completions, callback, ctx)
           ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
         },
       },
+      -- Store additionalTextEdits for use in resolve
+      data = {
+        additionalTextEdits = completion.additionalTextEdits,
+      },
     }
-    print(vim.inspect(completion))
-    -- print("Item before insert 1:", vim.inspect(item))
     table.insert(items, item)
   end
 
-  -- print("[AI_SNIPPETS] Generated", #items, "completions")
   callback({
     items = items,
     is_incomplete_backward = false,
@@ -155,19 +152,17 @@ end
 function source:resolve(item, callback)
   item = vim.deepcopy(item)
 
-  -- item.documentation = {
-  --   kind = "markdown",
-  --   value = "AI-generated code completion based on context.",
-  -- }
-  -- item.additionalTextEdits = {
-  --   {
-  --     newText = 'foo',
-  --     range = {
-  --       start = { line = 0, character = 0 },
-  --       ['end'] = { line = 0, character = 0 },
-  --     },
-  --   },
-  -- }
+  -- Add additionalTextEdits if they were provided by the AI
+  if item.data and item.data.additionalTextEdits then
+    item.additionalTextEdits = item.data.additionalTextEdits
+  end
+
+  -- Optional: Add documentation
+  item.documentation = {
+    kind = "markdown",
+    value = "AI-generated completion" .. (item.additionalTextEdits and " (includes imports)" or ""),
+  }
+
   callback(item)
 end
 

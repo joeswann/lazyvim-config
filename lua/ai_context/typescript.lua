@@ -1,13 +1,22 @@
 -- TypeScript/JavaScript context patterns and dependency resolution
 local M = {}
 
+-- Consumers can set this from elsewhere:
+M.snippet_patterns = {
+  -- Any of these shapes:
+  "[ { label: 'Sanity Image', body: '<SanityImage asset={$placeholder} alt={$placeholder} />' } ]", -- raw array text (string)
+  -- { name = "snippets", array = "[ { label: 'a', body: 'b' } ]" },        -- table with array
+  -- { name = "uiSnippets", array_text = "[ { label: 'x', body: 'y' } ]" }, -- table with array_text
+}
+M.snippet_patterns = M.snippet_patterns or {}
+
 -- File extensions for TypeScript/JavaScript projects
 M.extensions = { ".tsx", ".ts", ".jsx", ".js", ".d.ts", ".json", ".css", ".module.css" }
 
 -- Dependency files specific to JavaScript/TypeScript projects
 M.dependency_files = {
   "package.json",
-  "package-lock.json", 
+  "package-lock.json",
   "yarn.lock",
   "pnpm-lock.yaml",
   "tsconfig.json",
@@ -26,10 +35,10 @@ M.dependency_files = {
 
 -- Import patterns for JavaScript/TypeScript
 M.import_patterns = {
-  "import%s+.-from%s+['\"](.-)['\"]",          -- import ... from 'module'
-  "import%s*%(%s*['\"](.-)['\"]%s*%)",         -- import('module')
-  "require%s*%(%s*['\"](.-)['\"]%s*%)",        -- require('module')
-  "from%s+['\"](.-)['\"]%s+import",            -- from 'module' import ...
+  "import%s+.-from%s+['\"](.-)['\"]", -- import ... from 'module'
+  "import%s*%(%s*['\"](.-)['\"]%s*%)", -- import('module')
+  "require%s*%(%s*['\"](.-)['\"]%s*%)", -- require('module')
+  "from%s+['\"](.-)['\"]%s+import", -- from 'module' import ...
 }
 
 -- TypeScript config file patterns
@@ -43,10 +52,16 @@ M.config_patterns = {
 ---@param root string Project root directory
 ---@return table alias_map, string|nil base_url
 function M.load_aliases(root)
-  local join = function(a, b) return (a:gsub("/+$", "")) .. "/" .. (b:gsub("^/+", "")) end
-  local fs_exists = function(p) return p and vim.loop.fs_stat(p) ~= nil end
-  local simplify = function(p) return vim.fn.simplify(p) end
-  
+  local join = function(a, b)
+    return (a:gsub("/+$", "")) .. "/" .. (b:gsub("^/+", ""))
+  end
+  local fs_exists = function(p)
+    return p and vim.loop.fs_stat(p) ~= nil
+  end
+  local simplify = function(p)
+    return vim.fn.simplify(p)
+  end
+
   local files = { "tsconfig.json", "jsconfig.json" }
   local alias = {}
   local baseUrlAbs = nil
@@ -93,10 +108,16 @@ end
 ---@param base_url string|nil Base URL for resolution
 ---@return string|nil Resolved file path
 function M.resolve_import(raw, file_dir, root, alias, base_url)
-  local join = function(a, b) return (a:gsub("/+$", "")) .. "/" .. (b:gsub("^/+", "")) end
-  local fs_exists = function(p) return p and vim.loop.fs_stat(p) ~= nil end
-  local simplify = function(p) return vim.fn.simplify(p) end
-  
+  local join = function(a, b)
+    return (a:gsub("/+$", "")) .. "/" .. (b:gsub("^/+", ""))
+  end
+  local fs_exists = function(p)
+    return p and vim.loop.fs_stat(p) ~= nil
+  end
+  local simplify = function(p)
+    return vim.fn.simplify(p)
+  end
+
   local function try_resolve(base, frag)
     local candidates = {}
     if frag:match("%.%w+$") then
@@ -122,12 +143,12 @@ function M.resolve_import(raw, file_dir, root, alias, base_url)
   if raw:match("^%.") then
     return try_resolve(file_dir, raw)
   end
-  
+
   -- Absolute imports
   if raw:match("^/") then
     return try_resolve(root, raw)
   end
-  
+
   -- Alias prefix resolution
   for pref, target in pairs(alias or {}) do
     if raw == pref or raw:sub(1, #pref + 1) == (pref .. "/") then
@@ -135,13 +156,15 @@ function M.resolve_import(raw, file_dir, root, alias, base_url)
       return try_resolve(target, rest)
     end
   end
-  
+
   -- Base URL resolution
   if base_url then
     local p = try_resolve(base_url, raw)
-    if p then return p end
+    if p then
+      return p
+    end
   end
-  
+
   return nil
 end
 
@@ -162,6 +185,51 @@ function M.parse_imports(lines)
   return imports
 end
 
+-- --- helpers for snippet ingestion (from M.snippet_patterns) ---------------
+
+--- Normalize user-provided snippet patterns (strings or tables) into a compact list.
+---@param patterns any[]
+---@param opts table|nil { max_vars?: number, max_chars?: number }
+---@return table[] items -- { name=string, array_text=string, preview=string }
+function M.normalize_snippet_patterns(patterns, opts)
+  opts = opts or {}
+  local max_vars = opts.max_vars or 6
+  local max_chars = opts.max_chars or 4000
+  local items, count = {}, 0
+
+  local function push(name, txt)
+    if not txt or txt == "" then
+      return
+    end
+    count = count + 1
+    if count > max_vars then
+      return
+    end
+    table.insert(items, {
+      name = name or "snippets",
+      array_text = txt,
+      preview = txt:sub(1, max_chars),
+    })
+  end
+
+  for _, entry in ipairs(patterns or {}) do
+    if type(entry) == "string" then
+      push("snippets", entry)
+    elseif type(entry) == "table" then
+      local name = entry.name or "snippets"
+      local txt = entry.array_text or entry.array or entry.body -- allow a few common keys
+      if type(txt) == "string" then
+        push(name, txt)
+      end
+    end
+    if count >= max_vars then
+      break
+    end
+  end
+
+  return items
+end
+
 --- Get TypeScript/JavaScript specific context
 ---@param base_context table Base context from builder
 ---@param opts table Options
@@ -171,16 +239,16 @@ function M.enhance_context(base_context, opts)
   local root = base_context.project_root
   local file = base_context.filepath
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  
+
   -- Load TypeScript configuration
   local alias, baseUrlAbs = M.load_aliases(root)
   local bufdir = vim.fn.fnamemodify(file, ":p:h")
-  
+
   -- Collect import samples
   local imports = M.parse_imports(lines)
   local import_samples = {}
   local seen = {}
-  
+
   for _, raw in ipairs(imports) do
     if not seen[raw] then
       seen[raw] = true
@@ -192,10 +260,10 @@ function M.enhance_context(base_context, opts)
           f:close()
           if content ~= "" then
             local sample = content:sub(1, opts.max_import_chars or 1500)
-            table.insert(import_samples, { 
-              raw = raw, 
-              path = vim.fn.fnamemodify(resolved, ":~:."), 
-              sample = sample 
+            table.insert(import_samples, {
+              raw = raw,
+              path = vim.fn.fnamemodify(resolved, ":~:."),
+              sample = sample,
             })
             if opts.max_imports and #import_samples >= opts.max_imports then
               break
@@ -205,14 +273,26 @@ function M.enhance_context(base_context, opts)
       end
     end
   end
-  
+
+  -- Ingest snippet arrays from M.snippet_patterns (not the current buffer)
+  local snippet_vars = M.normalize_snippet_patterns(M.snippet_patterns, {
+    max_vars = opts.max_snippet_vars or 6,
+    max_chars = opts.max_snippet_chars or 4000,
+  })
+
+  -- print(vim.inspect(snippet_vars))
+
   -- Add TypeScript-specific context
   base_context.imports = import_samples
   base_context.ts_config = {
     alias = alias,
     baseUrl = baseUrlAbs,
   }
-  
+
+  if #snippet_vars > 0 then
+    base_context.ts_snippets = snippet_vars
+  end
+
   return base_context
 end
 

@@ -16,30 +16,37 @@ end
 
 local function create_payload(ctx, config, model)
   local system = table.concat({
-    "You are a fast code completion engine for Neovim with snippet support.",
-    "You will receive context including details such as 'before' (lines before cursor), 'current' (text on current line up to cursor), and 'after' (lines after cursor).",
-    "Generate ONE useful completion and respond with JSON in this EXACT format:",
-    '{"text": "completion text here", "label": "short description", "range": {"start_line": 0, "start_col": 0, "end_line": 0, "end_col": 5}}',
-    "- text: The completion text",
-    "- label: A short, descriptive label for what this completion does",
-    "- range: The text range to replace (0-based line/column numbers relative to cursor position)",
-    "  - start_line/start_col: How many lines/cols before cursor to start replacing (usually 0,0 for cursor position)",
-    "  - end_line/end_col: How many lines/cols after cursor to end replacing",
-    "Focus on the most likely next code that fits the pattern.",
-    "Use available dependencies and imports from the context.",
-    "Return ONLY valid JSON, no markdown or explanations.",
+    "You are a fast code completion engine for Neovim.",
+    "You receive a context object with:",
+    "- before: lines before cursor",
+    "- current: text on current line up to cursor position",
+    "- after: lines after cursor",
+    "- snippets: array of {name, array_text} with snippet definitions",
+    "- imports: already imported modules with their code samples",
+    "- dependencies: available packages",
+    "",
+    "COMPLETION RULES:",
+    "1. If current text matches a snippet pattern from context.snippets, expand that snippet",
+    "   Example: '<Sanity' → '<SanityImage asset={} alt={} />' if SanityImage snippet exists",
+    "2. Complete based on patterns in existing code and imports",
+    "3. If the completion uses components/modules not yet imported, include additionalTextEdits to add the import",
+    "",
+    "Response JSON format:",
+    '{"completion": "code to insert", "label": "description", "range": {...}, "additionalTextEdits": [...]}',
+    "- completion: The actual code to insert at cursor",
+    "- label: Brief description (max 40 chars)",
+    "- range: {start_line: 0, start_col: 0, end_line: 0, end_col: N} where N is chars to replace after cursor",
+    "- additionalTextEdits: (optional) Array of edits to add imports:",
+    '    [{"newText": "import X from \'Y\';\\n", "range": {"start": {"line": 3, "character": 0}, "end": {"line": 3, "character": 0}}}]',
+    "    Place imports after existing imports (look at line numbers in context.before)",
+    "",
+    "IMPORTANT: additionalTextEdits must use LSP TextEdit format with start/end positions",
+    "The line numbers should be absolute (0-based) - count newlines in context.before to find import location",
+    "",
+    "Return ONLY valid JSON, no markdown.",
   }, "\n")
 
-  -- Use the new context structure
-  local simplified_ctx = {
-    language = ctx.language,
-    filename = ctx.filename,
-    before = ctx.before and ctx.before:sub(-1000) or "", -- Last 1000 chars of before
-    current = ctx.current or "", -- Current line text up to cursor
-    after = ctx.after and ctx.after:sub(1, 400) or "", -- Next 400 chars of after
-  }
-
-  local user = vim.json.encode(simplified_ctx)
+  local user = vim.json.encode(ctx)
 
   return {
     url = config.url,
@@ -50,19 +57,17 @@ local function create_payload(ctx, config, model)
     },
     body = vim.json.encode({
       model = config.model,
-      max_tokens = 150, -- Good balance of speed and usefulness
+      max_tokens = 150,
       temperature = 0.1,
       system = system,
       messages = { { role = "user", content = user } },
     }),
   }
 end
-
 -- Track active requests for cancellation
 local active_requests = {}
 local request_id_counter = 0
 
---- Parse and clean up a completion result from JSON
 local function parse_completion(text)
   if not text or type(text) ~= "string" then
     return nil
@@ -74,12 +79,13 @@ local function parse_completion(text)
   -- Try to parse as JSON
   local ok, result = pcall(vim.json.decode, clean_text)
   if ok and result and type(result) == "table" then
-    -- Validate required fields
-    if result.text and result.label and result.range then
+    -- Validate required fields (now "completion" instead of "text")
+    if result.completion and result.label and result.range then
       return {
-        text = result.text,
+        completion = result.completion, -- Changed from "text"
         label = result.label,
         range = result.range,
+        additionalTextEdits = result.additionalTextEdits, -- Direct pass-through
       }
     end
   end
@@ -87,7 +93,7 @@ local function parse_completion(text)
   -- Fallback: treat as plain text completion
   if clean_text ~= "" then
     return {
-      text = clean_text,
+      completion = clean_text, -- Changed from "text"
       label = clean_text:gsub("\n", "↵"):sub(1, 40) .. (clean_text:len() > 40 and "..." or ""),
       range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 },
     }
@@ -95,7 +101,6 @@ local function parse_completion(text)
 
   return nil
 end
-
 --- Make a single async completion request
 local function make_async_request(ctx, config, model, request_id, callback)
   local req = create_payload(ctx, config, model)
