@@ -43,7 +43,7 @@ end
 
 function source:get_completions(ctx, callback)
   local context_builder = require("ai_context.builder")
-  local ai = require("ai_snippets.engine")
+  local ai = require("ai_suggestions.engine")
 
   -- local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
   -- if before_line:match("^%s*$") then

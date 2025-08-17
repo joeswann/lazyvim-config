@@ -9,35 +9,23 @@ return {
       "kikito/inspect.lua",
     },
 
-    config = function()
-      local opts = {
-        sources = {
-          default = {
-            "ai_snippets",
-            "lsp",
-            -- "copilot",
-            "path",
-            "snippets",
-            "buffer",
-          },
-          providers = {
-            -- copilot = { module = "blink-cmp-copilot", score_offset = 120, kind = "Copilot" },
-            ai_snippets = {
-              name = "AI Snippets",
-              module = "ai_snippets.source",
-              score_offset = 120,
-            },
-          },
-        },
-
-        -- cmdline = { enabled = false },
-
-        keymap = {
-          preset = "enter",
-          -- ["<C-y>"] = { "select_and_accept" },
-        },
+    config = function(_, opts)
+      opts.sources.default = {
+        -- "copilot",
+        "ai_suggestions",
+        "lsp",
+        "path",
+        "snippets",
+        "buffer",
       }
 
+      opts.sources.providers = opts.sources.providers or {}
+      opts.sources.providers.ai_suggestions = {
+        name = "AI Snippets",
+        module = "ai_suggestions.source",
+      }
+
+      opts.keymap.preset = "enter"
       require("blink.cmp").setup(opts)
     end,
   },
