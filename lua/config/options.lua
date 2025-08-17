@@ -8,5 +8,9 @@ vim.opt.number = true
 vim.opt.relativenumber = false
 vim.g.ai_cmp = true -- enables Blink's ghost_text
 
+-- AI provider configuration
+-- Options: "claude", "gemini", "auto" (auto selects based on available API keys)
+vim.g.ai_provider = "claude"
+
 -- Enable verbose logging for debugging
 vim.lsp.set_log_level("debug")

@@ -1,5 +1,6 @@
 -- @module 'blink.cmp'
 --- @class blink.cmp.Source
+
 local source = {}
 
 function source.new(opts)
@@ -10,9 +11,9 @@ function source.new(opts)
   return self
 end
 
-function source:enabled()
-  return vim.env.ANTHROPIC_API_KEY ~= nil
-end
+-- function source:enabled()
+--   return vim.env.ANTHROPIC_API_KEY ~= nil
+-- end
 
 function source:get_trigger_characters()
   return {
@@ -41,96 +42,60 @@ function source:get_trigger_characters()
 end
 
 function source:get_completions(ctx, callback)
-  local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
-  if before_line:match("^%s*$") then
-    return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
-  end
-
-  if self.current_cancel_fn then
-    self.current_cancel_fn()
-    self.current_cancel_fn = nil
-  end
-
-  if self.debounce_timer then
-    self.debounce_timer:stop()
-    self.debounce_timer = nil
-  end
-
-  self.debounce_timer = vim.defer_fn(function()
-    self.debounce_timer = nil
-    self.current_cancel_fn = self:get_direct_completions(ctx, callback)
-  end, 300)
-
-  return function()
-    if self.debounce_timer then
-      self.debounce_timer:stop()
-      self.debounce_timer = nil
-    end
-    if self.current_cancel_fn then
-      self.current_cancel_fn()
-      self.current_cancel_fn = nil
-    end
-  end
-end
-
-function source:get_direct_completions(ctx, callback)
   local context_builder = require("ai_context.builder")
   local ai = require("ai_snippets.engine")
 
-  local context = context_builder.build_context({
-    max_before = 2400,
-    max_after = 1200,
-    max_open_buffers = 3,
-    max_recent_diff_lines = 120,
-  })
+  -- local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
+  -- if before_line:match("^%s*$") then
+  --   return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
+  -- end
 
-  return ai.suggest(context, function(ok, completions)
+  local context = context_builder.build_context()
+
+  ai.suggest(context, function(ok, completions)
     if ok and completions then
-      self:process_completions(completions, callback, ctx)
+      if not completions or #completions == 0 then
+        return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
+      end
+
+      local items = {}
+
+      for _, completion in ipairs(completions) do
+        if completion.newText ~= "" and completion.range then
+          local label = (
+            completion.newText:gsub("\n", "↵"):sub(1, 60) .. (completion.newText:len() > 60 and "..." or "")
+          )
+
+          --- @type lsp.CompletionItem
+          local item = {
+            label = "[AI] " .. label,
+            -- detail = "AI #" .. i,
+            -- textEdit = {
+            -- newText = completion.newText,
+            -- range = completion.range,
+            -- },
+            insertText = completion.newText,
+            data = {
+              additionalTextEdits = completion.additionalTextEdits,
+            },
+          }
+
+          table.insert(items, item)
+        end
+      end
+
+      print("Returning completion item")
+      print(vim.inspect(items))
+
+      callback({
+        items = vim.deepcopy(items),
+        is_incomplete_backward = false,
+        is_incomplete_forward = false,
+      })
     else
       callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
     end
   end)
-end
--- --- main ------------------------------------------------------------------
-
-function source:process_completions(completions, callback, ctx)
-  if not completions or #completions == 0 then
-    return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
-  end
-
-  local items = {}
-  for i, completion in ipairs(completions) do
-    local newText = completion.newText or ""
-    if newText ~= "" and completion.range then
-      local label = (newText:gsub("\n", "↵"):sub(1, 60) .. (newText:len() > 60 and "..." or ""))
-
-      print(vim.inspect(completion))
-
-      --- @type lsp.CompletionItem
-      local item = {
-        label = label,
-        detail = "AI #" .. i,
-        textEdit = {
-          newText = newText,
-          range = completion.range,
-        },
-        data = {
-          additionalTextEdits = completion.additionalTextEdits,
-        },
-      }
-
-      print(vim.inspect(item))
-
-      table.insert(items, item)
-    end
-  end
-
-  callback({
-    items = items,
-    is_incomplete_backward = false,
-    is_incomplete_forward = false,
-  })
 
   return function() end
 end

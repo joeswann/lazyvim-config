@@ -349,7 +349,7 @@ function U.build_context(opts)
   local ft = vim.bo.filetype
   local file = vim.fn.expand("%:p")
   local filename = vim.fn.expand("%:t")
-  local bufnr = vim.api.nvim_get_current_buf()
+  -- local bufnr = vim.api.nvim_get_current_buf()
   local cwd = uv.cwd()
   local root = project_root()
 
