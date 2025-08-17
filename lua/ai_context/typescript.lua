@@ -4,7 +4,7 @@ local M = {}
 -- Consumers can set this from elsewhere:
 M.snippet_patterns = {
   -- Any of these shapes:
-  "[ { label: 'Sanity Image', body: '<SanityImage asset={$placeholder} alt={$placeholder} />' } ]", -- raw array text (string)
+  -- "[ { label: 'Sanity Image', body: '<SanityImage asset={$placeholder} alt={$placeholder} />' } ]", -- raw array text (string)
   -- { name = "snippets", array = "[ { label: 'a', body: 'b' } ]" },        -- table with array
   -- { name = "uiSnippets", array_text = "[ { label: 'x', body: 'y' } ]" }, -- table with array_text
 }

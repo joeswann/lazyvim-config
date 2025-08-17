@@ -96,8 +96,6 @@ function M.search_similar_files(filename, opts)
     timeout = 2000, -- Reduced from 5000
   })
 
-  print(vim.inspect(response))
-
   if not response or response.status ~= 200 then
     -- Cache failed result
     cache[cache_key] = { time = os.time(), data = {} }

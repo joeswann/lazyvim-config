@@ -400,9 +400,7 @@ function U.build_context(opts)
 
   -- Build base context
   local github_similar = collect_github_similar_files(filename, opts)
-  print("[AI Context] GitHub similar files found:", #github_similar)
   if #github_similar > 0 then
-    print("[AI Context] GitHub similar files:")
     for i, file in ipairs(github_similar) do
       print("  ", i, file.repo .. "/" .. file.path, "(" .. #file.content .. " chars)")
     end
@@ -440,17 +438,17 @@ function U.build_context(opts)
     ctx = context_module.enhance_context(ctx, opts)
   end
 
-  print("[AI Context] Final context structure:")
-  print(vim.inspect({
-    language = ctx.language,
-    filename = ctx.filename,
-    cursor_pos = ctx.cursor,
-    current_text_length = #ctx.current,
-    before_text_length = #ctx.before,
-    after_text_length = #ctx.after,
-    dependencies_count = #ctx.dependencies,
-    github_similar_count = #ctx.github_similar,
-  }))
+  -- print("[AI Context] Final context structure:")
+  -- print(vim.inspect({
+  --   language = ctx.language,
+  --   filename = ctx.filename,
+  --   cursor_pos = ctx.cursor,
+  --   current_text_length = #ctx.current,
+  --   before_text_length = #ctx.before,
+  --   after_text_length = #ctx.after,
+  --   dependencies_count = #ctx.dependencies,
+  --   github_similar_count = #ctx.github_similar,
+  -- }))
 
   return ctx
 end

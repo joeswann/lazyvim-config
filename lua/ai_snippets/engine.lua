@@ -13,6 +13,7 @@ local function get_api_config()
   end
   return nil
 end
+
 local function create_payload(ctx, config, model)
   local system = table.concat({
     "You are a fast code completion engine for Neovim.",
@@ -26,25 +27,51 @@ local function create_payload(ctx, config, model)
     "- github_similar: similar files from other projects with the same name",
     "",
     "COMPLETION RULES:",
-    "1. Analyze the context to understand what the user is typing",
-    "2. If github_similar contains files, use their patterns as hints but ONLY when relevant",
-    "3. Only use snippets from context.snippets when the user is actually typing something that matches",
-    "4. Focus on completing what the user is CURRENTLY typing, not random suggestions",
-    "",
-    "IMPORTANT RULES:",
-    "- If user is typing 'HomeSec', complete it to 'HomeSections' or similar, NOT 'SanityImage'",
+    "- Analyze the context to understand what the user is typing",
+    "- Try to complete or improve the current line, not replace it with something else entirely",
+    "- If context contains relevant code, use their patterns as hints but ONLY when everything else matches",
     "- Match the user's typing pattern - don't suggest unrelated components",
-    "- Only suggest from context.snippets if it matches what's being typed",
+    "- Only use snippets from context.snippets when the user is actually typing something that matches",
+    "- If adding a new component, remember to import it using the additionalTextEdits response",
     "",
-    "Response must be ONLY valid JSON in this exact format:",
-    '{"completion": "code to insert", "label": "description", "range": {...}, "additionalTextEdits": [...]}',
-    "- completion: The actual code to insert at cursor (just the code, no JSON)",
-    "- label: Brief description (max 40 chars)",
-    "- range: {start_line: 0, start_col: 0, end_line: 0, end_col: N}",
-    "- additionalTextEdits: (optional) Array of edits to add imports",
+    "CRITICAL:",
+    "- Response must be ONLY valid JSON in the exact structure below",
+    "- Always output JSON only (no markdown, no backticks).",
+    "- newText: The actual code to insert at cursor (just the code, no JSON).",
+    "- label: Brief description (max 40 chars).",
+    "- range: These are the start and end coordinates of the replacement(s) relative to the start of the file.",
+    -- "-- note: range lines are offset - so subtract one from the start and end line",
+    -- "note RELATIVE ie the start line for the main completion will almost always be 0 this is VERY VERY IMPORTANT",
     "",
-    "CRITICAL: Return ONLY the JSON object, no markdown, no backticks, no explanation.",
-    "The 'completion' field must contain ONLY the code to insert, not JSON.",
+    "{",
+    '  "newText":"code to insert",',
+    '  "label":"description",',
+    '  "range": {',
+    '    "start": {',
+    '      "line": 0,',
+    '      "character": 0',
+    "    },",
+    '    "end": {',
+    '      "line": 0,',
+    '     "character": 0',
+    "    }",
+    "  },",
+    '  additionalTextEdits": [',
+    "    {",
+    '      "range": {',
+    '        "start": {',
+    '          "line": 0,',
+    '          "character": 0',
+    "        },",
+    '        "end": {',
+    '          "line": 0,',
+    '          "character": 0',
+    "        }",
+    "      },",
+    '      "newText": "import..."',
+    "    }",
+    "  ]",
+    "}",
   }, "\n")
 
   local user = vim.json.encode(ctx)
@@ -58,52 +85,19 @@ local function create_payload(ctx, config, model)
     },
     body = vim.json.encode({
       model = config.model,
-      max_tokens = 150,
+      max_tokens = 512,
       temperature = 0.1,
       system = system,
       messages = { { role = "user", content = user } },
     }),
   }
 end
+
 -- Track active requests for cancellation
 local active_requests = {}
 local request_id_counter = 0
 
-local function parse_completion(text)
-  if not text or type(text) ~= "string" then
-    return nil
-  end
-
-  -- Clean markdown if present
-  local clean_text = text:gsub("^```json\n?", ""):gsub("\n?```%s*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
-
-  -- Try to parse as JSON
-  local ok, result = pcall(vim.json.decode, clean_text)
-  if ok and result and type(result) == "table" then
-    -- Validate required fields
-    if result.completion and result.label and result.range then
-      return {
-        completion = result.completion,
-        label = result.label,
-        range = result.range,
-        additionalTextEdits = result.additionalTextEdits,
-      }
-    end
-  end
-
-  -- IMPORTANT: Don't return raw JSON as fallback
-  -- Only return plain text if it doesn't look like JSON
-  if not clean_text:match("^%s*{") and not clean_text:match("completion") then
-    return {
-      completion = clean_text,
-      label = clean_text:gsub("\n", "↵"):sub(1, 40) .. (clean_text:len() > 40 and "..." or ""),
-      range = { start_line = 0, start_col = 0, end_line = 0, end_col = 0 },
-    }
-  end
-
-  -- If it looks like JSON but failed to parse, return nil
-  return nil
-end --- Make a single async completion request
+-- Make a single async completion request
 local function make_async_request(ctx, config, model, request_id, callback)
   local req = create_payload(ctx, config, model)
 
@@ -117,17 +111,30 @@ local function make_async_request(ctx, config, model, request_id, callback)
         return
       end
 
-      local result = nil
+      local result_text = nil
+      local result_json = nil
+
       if res and res.status == 200 then
-        local ok, json = pcall(vim.json.decode, res.body or "")
-        if ok and json then
-          if json.content and json.content[1] then
-            result = json.content[1].text or ""
+        local clean_body = res.body:gsub("\n", "") or ""
+        -- print("Response body")
+        -- print(clean_body)
+        local ok, json = pcall(vim.json.decode, clean_body)
+        if ok and json and json.content and json.content[1] then
+          result_text = json.content[1].text:gsub("\n", "") or ""
+
+          local _ok, _json = pcall(vim.json.decode, result_text)
+          print(_ok)
+          print(vim.inspect(_json))
+          if _ok and _json then
+            result_json = _json
           end
         end
       end
 
-      callback(parse_completion(result))
+      print("Async result")
+      print(vim.inspect(result_text))
+      print(vim.inspect(result_json))
+      callback(result_json)
     end),
   })
 end
@@ -141,7 +148,7 @@ end
 
 --- Suggest multiple completion texts using parallel async requests
 ---@param ctx table
----@param cb fun(ok:boolean, completions:string[]|nil)
+---@param cb fun(ok:boolean, completions:table[]|nil)
 function E.suggest(ctx, cb)
   local config = get_api_config()
   if not config then
@@ -162,6 +169,8 @@ function E.suggest(ctx, cb)
   local total_requests = 0
 
   local function handle_completion(result)
+    print("result:")
+    print(vim.inspect(result))
     completed_requests = completed_requests + 1
 
     if result then
@@ -183,7 +192,7 @@ function E.suggest(ctx, cb)
 
   -- Start parallel requests
   total_requests = 2
-  for i = 1, total_requests do
+  for _ = 1, total_requests do
     make_async_request(ctx, config, config.model, request_id, handle_completion)
   end
 

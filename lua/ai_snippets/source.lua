@@ -1,4 +1,4 @@
---- @module 'blink.cmp'
+-- @module 'blink.cmp'
 --- @class blink.cmp.Source
 local source = {}
 
@@ -11,16 +11,10 @@ function source.new(opts)
 end
 
 function source:enabled()
-  -- print("[AI_SNIPPETS] Checking enabled status...")
-  local has_anthropic = vim.env.ANTHROPIC_API_KEY ~= nil
-
-  local enabled = has_anthropic
-  -- print("[AI_SNIPPETS] Enabled:", enabled)
-  return enabled
+  return vim.env.ANTHROPIC_API_KEY ~= nil
 end
 
 function source:get_trigger_characters()
-  -- Enhanced trigger characters for better AI completion timing
   return {
     ".",
     ">",
@@ -29,54 +23,44 @@ function source:get_trigger_characters()
     " ",
     "(",
     "[",
-    "{", -- Original triggers
+    "{",
     "\n",
     "}",
     ")",
     "]",
     ";",
-    ",", -- Additional triggers for snippet expansion
+    ",",
     "f",
     "c",
     "i",
     "a",
     "v",
     "l",
-    "d", -- Common word starts that benefit from AI
+    "d",
   }
 end
 
 function source:get_completions(ctx, callback)
-  -- print("[AI_SNIPPETS] get_completions called")
-
   local before_line = ctx.line and ctx.line:sub(1, ctx.cursor[2]) or ""
-
   if before_line:match("^%s*$") then
-    -- print("[AI_SNIPPETS] Empty line, returning no items")
     return callback({ items = {}, is_incomplete_backward = false, is_incomplete_forward = false })
   end
 
-  -- Cancel any existing request
   if self.current_cancel_fn then
     self.current_cancel_fn()
     self.current_cancel_fn = nil
   end
 
-  -- Cancel existing debounce timer
   if self.debounce_timer then
     self.debounce_timer:stop()
     self.debounce_timer = nil
   end
 
-  -- Debounce the request (750ms like copilot)
   self.debounce_timer = vim.defer_fn(function()
     self.debounce_timer = nil
-    -- print("[AI_SNIPPETS] Debounce complete, making request...")
-
     self.current_cancel_fn = self:get_direct_completions(ctx, callback)
   end, 300)
 
-  -- Return cancel function that cancels both debounce and request
   return function()
     if self.debounce_timer then
       self.debounce_timer:stop()
@@ -100,8 +84,6 @@ function source:get_direct_completions(ctx, callback)
     max_recent_diff_lines = 120,
   })
 
-  -- print("Item context:", vim.inspect(context))
-
   return ai.suggest(context, function(ok, completions)
     if ok and completions then
       self:process_completions(completions, callback, ctx)
@@ -110,6 +92,7 @@ function source:get_direct_completions(ctx, callback)
     end
   end)
 end
+-- --- main ------------------------------------------------------------------
 
 function source:process_completions(completions, callback, ctx)
   if not completions or #completions == 0 then
@@ -118,26 +101,29 @@ function source:process_completions(completions, callback, ctx)
 
   local items = {}
   for i, completion in ipairs(completions) do
-    local text = completion.completion -- Changed from completion.text
-    local label = completion.label or (text:gsub("\n", "↵"):sub(1, 60) .. (text:len() > 60 and "..." or ""))
+    local newText = completion.newText or ""
+    if newText ~= "" and completion.range then
+      local label = (newText:gsub("\n", "↵"):sub(1, 60) .. (newText:len() > 60 and "..." or ""))
 
-    --- @type lsp.CompletionItem
-    local item = {
-      label = label,
-      detail = "AI #" .. i,
-      textEdit = {
-        newText = text,
-        range = {
-          start = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
-          ["end"] = { line = ctx.cursor[1] - 1, character = ctx.cursor[2] },
+      print(vim.inspect(completion))
+
+      --- @type lsp.CompletionItem
+      local item = {
+        label = label,
+        detail = "AI #" .. i,
+        textEdit = {
+          newText = newText,
+          range = completion.range,
         },
-      },
-      -- Store additionalTextEdits for use in resolve
-      data = {
-        additionalTextEdits = completion.additionalTextEdits,
-      },
-    }
-    table.insert(items, item)
+        data = {
+          additionalTextEdits = completion.additionalTextEdits,
+        },
+      }
+
+      print(vim.inspect(item))
+
+      table.insert(items, item)
+    end
   end
 
   callback({
@@ -152,12 +138,10 @@ end
 function source:resolve(item, callback)
   item = vim.deepcopy(item)
 
-  -- Add additionalTextEdits if they were provided by the AI
   if item.data and item.data.additionalTextEdits then
     item.additionalTextEdits = item.data.additionalTextEdits
   end
 
-  -- Optional: Add documentation
   item.documentation = {
     kind = "markdown",
     value = "AI-generated completion" .. (item.additionalTextEdits and " (includes imports)" or ""),
