@@ -4,29 +4,34 @@ return {
     "saghen/blink.cmp",
     event = "InsertEnter",
     dependencies = {
-      "L3MON4D3/LuaSnip",
       "saghen/blink.compat",
+      "L3MON4D3/LuaSnip",
       "kikito/inspect.lua",
     },
 
-    config = function(_, opts)
-      opts.sources.default = {
-        -- "copilot",
-        "ai_suggestions",
-        "lsp",
-        "path",
-        "snippets",
-        "buffer",
-      }
-
-      opts.sources.providers = opts.sources.providers or {}
-      opts.sources.providers.ai_suggestions = {
-        name = "AI Snippets",
-        module = "ai_suggestions.source",
-      }
-
-      opts.keymap.preset = "enter"
-      require("blink.cmp").setup(opts)
-    end,
+    opts = {
+      snippets = { preset = "luasnip" },
+      sources = {
+        default = {
+          -- "copilot",
+          -- "ai_suggestions",
+          "lsp",
+          "path",
+          "snippets",
+          "buffer",
+        },
+        providers = {
+          snippets = { score_offset = 100 }, -- make snippets rank higher
+          ai_suggestions = {
+            name = "AI",
+            module = "ai_suggestions.source",
+            snippets = { score_offset = 120 }, -- make snippets rank higher
+          },
+        },
+      },
+      keymap = {
+        preset = "enter",
+      },
+    },
   },
 }

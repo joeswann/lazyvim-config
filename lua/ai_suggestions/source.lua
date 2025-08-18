@@ -69,7 +69,6 @@ function source:get_completions(ctx, callback)
           --- @type lsp.CompletionItem
           local item = {
             label = "[AI] " .. label,
-            -- detail = "AI #" .. i,
             -- textEdit = {
             -- newText = completion.newText,
             -- range = completion.range,
@@ -77,6 +76,11 @@ function source:get_completions(ctx, callback)
             insertText = completion.newText,
             data = {
               additionalTextEdits = completion.additionalTextEdits,
+            },
+            documentation = {
+              kind = "markdown",
+              value = completion.documentation,
+              -- value = "AI-generated completion" .. (item.additionalTextEdits and " (includes imports)" or ""),
             },
           }
 
@@ -102,15 +106,10 @@ end
 
 function source:resolve(item, callback)
   item = vim.deepcopy(item)
-
-  if item.data and item.data.additionalTextEdits then
-    item.additionalTextEdits = item.data.additionalTextEdits
-  end
-
-  item.documentation = {
-    kind = "markdown",
-    value = "AI-generated completion" .. (item.additionalTextEdits and " (includes imports)" or ""),
-  }
+  --
+  -- if item.data and item.data.additionalTextEdits then
+  --   item.additionalTextEdits = item.data.additionalTextEdits
+  -- end
 
   callback(item)
 end
