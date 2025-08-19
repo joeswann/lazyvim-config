@@ -210,7 +210,7 @@ return {
   }, {
     snippetType = "autosnippet",
   }),
-  srp("ihook", {
+  srp("export const  use", {
     t("export const "),
     f(function()
       return base_name()
@@ -262,6 +262,14 @@ return {
     i(1, "link"),
     t("}"),
     t({ " />" }),
+  }, {
+    snippetType = "autosnippet",
+  }),
+
+  srp("conso", {
+    t("console.log("),
+    i(1),
+    t({ ");" }),
   }, {
     snippetType = "autosnippet",
   }),
